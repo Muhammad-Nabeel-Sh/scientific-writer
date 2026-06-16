@@ -67,6 +67,18 @@ export async function writeNote(id: string, content: string) {
   await invoke('write_text_file', { path, content });
 }
 
+export async function copyFileToAssets(
+  workspace: string,
+  fileName: string,
+  data: number[],
+): Promise<string> {
+  return invoke<string>('copy_file_to_assets', { workspace, fileName, data });
+}
+
+export async function listAssets(workspace: string): Promise<string[]> {
+  return invoke<string[]>('list_assets', { workspace });
+}
+
 export async function deleteNode(id: string) {
   const path = await workspacePath(id);
   await invoke('remove_file', { path });

@@ -1,8 +1,10 @@
 <script lang="ts">
   import { noteContent, activeNoteId } from "$lib/stores";
-  import { writeNote } from "$lib/fs";
+  import { writeNote, getWorkspaceDir } from "$lib/fs";
+  import { invoke } from "@tauri-apps/api/core";
   import { debounce } from "$lib/utils";
   import QuranDialog from "./QuranDialog.svelte";
+  import HadithDialog from "./HadithDialog.svelte";
 
   let textareaRef: HTMLTextAreaElement;
   let saveTimeout: ReturnType<typeof setTimeout>;
@@ -11,6 +13,7 @@
   let showHeadingMenu = false;
   let showTableDialog = false;
   let showQuranDialog = false;
+  let showHadithDialog = false;
   let tableRows = 3;
   let tableCols = 4;
   let tableLang: "arabic" | "english" = "arabic";
@@ -133,14 +136,18 @@
     fileInput?.click();
   }
 
-  function onImageSelected() {
+  async function onImageSelected() {
     const file = fileInput?.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      insertAtCursor(`\n![${file.name}](${reader.result})\n`);
-    };
-    reader.readAsDataURL(file);
+    const ext = file.name.split('.').pop() || 'png';
+    const now = new Date();
+    const ts = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
+    const fileName = `image_${ts}.${ext}`;
+    const arrayBuffer = await file.arrayBuffer();
+    const data = Array.from(new Uint8Array(arrayBuffer));
+    const workspace = await getWorkspaceDir();
+    const relPath = await invoke('copy_file_to_assets', { workspace, fileName, data });
+    insertAtCursor(`\n![${file.name}](${relPath})\n`);
     fileInput.value = "";
   }
 
@@ -599,6 +606,9 @@
   {#if showQuranDialog}
     <QuranDialog on:close={() => (showQuranDialog = false)} {appendText} />
   {/if}
+  {#if showHadithDialog}
+    <HadithDialog on:close={() => (showHadithDialog = false)} {appendText} />
+  {/if}
 
   <textarea
     bind:this={textareaRef}
@@ -624,11 +634,7 @@
   ></textarea>
 
   <div class="bottom-bar">
-    <button
-      class="tb-quran"
-      title="القرآن"
-      on:click={() => (showQuranDialog = true)}
-    >
+    <button class="tb-quran" on:click={() => (showQuranDialog = true)}>
       <svg
         viewBox="0 0 24 24"
         stroke="currentColor"
@@ -643,8 +649,9 @@
         <line x1="8" y1="11" x2="14" y2="11" />
         <line x1="8" y1="15" x2="12" y2="15" />
       </svg>
+      <span>القرآن</span>
     </button>
-    <button class="tb-quran" title="شعر" on:click={insertPoetry}>
+    <button class="tb-quran" on:click={() => (showHadithDialog = true)}>
       <svg
         viewBox="0 0 24 24"
         stroke="currentColor"
@@ -653,10 +660,26 @@
         stroke-linecap="round"
         stroke-linejoin="round"
       >
-        <path
-          d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2z"
-        />
+        <path d="M4 19.5A2.5 2.5 0 016.5 17H20" />
+        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
+        <circle cx="10" cy="10" r="3" />
+        <path d="M16 22c0-3.5-2.7-6-6-6s-6 2.5-6 6" />
       </svg>
+      <span>الحديث</span>
+    </button>
+    <button class="tb-quran" on:click={insertPoetry}>
+      <svg
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        fill="none"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+        <path d="M15 5l4 4" />
+      </svg>
+      <span>شعر</span>
     </button>
   </div>
 </div>

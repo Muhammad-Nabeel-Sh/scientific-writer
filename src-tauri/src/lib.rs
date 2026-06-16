@@ -11,6 +11,41 @@ fn workspace_dir(app: &tauri::AppHandle) -> PathBuf {
 }
 
 #[tauri::command]
+fn copy_file_to_assets(workspace: String, file_name: String, data: Vec<u8>) -> Result<String, String> {
+    let assets_dir = Path::new(&workspace).join("assets");
+    fs::create_dir_all(&assets_dir).map_err(|e| format!("mkdir assets: {}", e))?;
+    let dest = assets_dir.join(&file_name);
+    fs::write(&dest, &data).map_err(|e| format!("write: {}", e))?;
+    Ok(format!("assets/{}", file_name))
+}
+
+#[tauri::command]
+fn list_assets(workspace: String) -> Result<Vec<String>, String> {
+    let assets_dir = Path::new(&workspace).join("assets");
+    if !assets_dir.exists() {
+        return Ok(vec![]);
+    }
+    let mut entries = fs::read_dir(&assets_dir).map_err(|e| format!("read_dir: {}", e))?;
+    let mut files = vec![];
+    while let Some(entry) = entries.next().transpose().map_err(|e| format!("entry: {}", e))? {
+        if entry.file_type().map_err(|e| format!("ftype: {}", e))?.is_file() {
+            if let Some(name) = entry.file_name().to_str() {
+                files.push(name.to_string());
+            }
+        }
+    }
+    files.sort();
+    Ok(files)
+}
+
+fn project_root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("failed to resolve project root")
+        .to_path_buf()
+}
+
+#[tauri::command]
 fn get_workspace_dir(app: tauri::AppHandle) -> Result<String, String> {
     let dir = workspace_dir(&app);
     fs::create_dir_all(&dir).map_err(|e| format!("mkdir: {}", e))?;
@@ -63,6 +98,27 @@ fn copy_file(src: String, dest: String) -> Result<(), String> {
     fs::write(&dest, &data).map_err(|e| format!("write dest: {}", e))
 }
 
+const HADITH_BOOKS: &[&str] = &[
+    "abudawud", "ahmed", "bukhari", "darimi", "ibnmajah", "malik", "muslim", "nasai", "tirmidhi",
+];
+
+#[tauri::command]
+fn get_hadith_books() -> Vec<&'static str> {
+    HADITH_BOOKS.to_vec()
+}
+
+#[tauri::command]
+fn read_hadith_book(book: String) -> Result<String, String> {
+    if !HADITH_BOOKS.contains(&book.as_str()) {
+        return Err(format!("unknown book: {}", book));
+    }
+    let path = project_root().join(format!(
+        "docs/hadith-json-1.2.0/db/by_book/the_9_books/{}.json",
+        book
+    ));
+    fs::read_to_string(&path).map_err(|e| format!("read hadith: {}", e))
+}
+
 #[tauri::command]
 fn greet(name: &str) -> String {
     format!("Hello, {name}!")
@@ -82,6 +138,10 @@ pub fn run() {
             rename_file,
             file_exists,
             copy_file,
+            copy_file_to_assets,
+            list_assets,
+            get_hadith_books,
+            read_hadith_book,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
