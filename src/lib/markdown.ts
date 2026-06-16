@@ -3,12 +3,41 @@ import katex from '@traptitech/markdown-it-katex';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github.css';
 
+const ARABIC_INDIC = '٠١٢٣٤٥٦٧٨٩';
+const arabicRe = /[\u0600-\u06FF]/;
+
+function renderPoem(str: string): string {
+  const lines = str.trim().split('\n');
+  const verses = lines
+    .filter(l => l.trim())
+    .map(l => {
+      const parts = l.split('||');
+      if (parts.length >= 2) {
+        return { sadr: parts[0].trim(), ajuz: parts[1].trim() };
+      }
+      return { sadr: l.trim(), ajuz: '' };
+    });
+  if (verses.length === 0) return '';
+
+  const inner = verses.map(v => {
+    if (!v.ajuz) {
+      return `<div class="poem-verse single"><span class="verse-sadr">${md.utils.escapeHtml(v.sadr)}</span></div>`;
+    }
+    return `<div class="poem-verse"><span class="verse-sadr">${md.utils.escapeHtml(v.sadr)}</span><div class="verse-gap"></div><span class="verse-ajuz">${md.utils.escapeHtml(v.ajuz)}</span></div>`;
+  }).join('\n');
+
+  return `<div class="arabic-poem" dir="rtl">\n${inner}\n</div>`;
+}
+
 const md = new MarkdownIt({
   html: false,
   linkify: true,
   typographer: true,
   breaks: true,
   highlight(str: string, lang: string): string {
+    if (lang === 'poetry') {
+      return renderPoem(str);
+    }
     if (lang && hljs.getLanguage(lang)) {
       try {
         const hl = hljs.highlight(str, { language: lang, ignoreIllegals: true });
@@ -22,9 +51,33 @@ const md = new MarkdownIt({
   displayMode: true,
 });
 
+function convertArabicDigits(text: string): string {
+  if (!arabicRe.test(text)) return text;
+  // Replace digits outside inline code (backtick-delimited)
+  return text.split(/(`[^`]*`)/g).map((part, i) => {
+    if (i % 2 === 0) {
+      return part.replace(/[0-9]/g, d => ARABIC_INDIC[+d]);
+    }
+    return part;
+  }).join('');
+}
+
 export function renderMarkdown(text: string): string {
   try {
-    const html = md.render(text);
+    // Pre-process: convert digits in Arabic text, skipping code fences
+    const lines = text.split('\n');
+    let inFence = false;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (line.trimStart().startsWith('```')) {
+        inFence = !inFence;
+      } else if (!inFence && !/^ {4}/.test(line)) {
+        lines[i] = convertArabicDigits(line);
+      }
+    }
+    const processed = lines.join('\n');
+
+    const html = md.render(processed);
     return html.replace(
       /<(p|h[1-6]|li|blockquote|pre)\b/gi,
       '<$1 dir="auto"',
