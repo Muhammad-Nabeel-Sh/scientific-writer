@@ -12,12 +12,17 @@
   let dragOver = false;
   let dragPos: 'before' | 'after' | 'inside' | null = null;
   let itemEl: HTMLDivElement;
+  let expandTimer: ReturnType<typeof setTimeout> | undefined;
 
   $: isActive = $activeNoteId === node.id;
 
   function handleDragStart(e: DragEvent) {
     e.dataTransfer?.setData('text/plain', node.id);
     e.dataTransfer!.effectAllowed = 'move';
+    if (expandTimer) {
+      clearTimeout(expandTimer);
+      expandTimer = undefined;
+    }
   }
 
   function handleDragOver(e: DragEvent) {
@@ -26,9 +31,9 @@
     const rect = itemEl.getBoundingClientRect();
     const y = e.clientY - rect.top;
     const h = rect.height;
-    if (y < h * 0.25) {
+    if (y < h * 0.33) {
       dragPos = 'before';
-    } else if (y > h * 0.75) {
+    } else if (y > h * 0.67) {
       dragPos = 'after';
     } else if (node.type === 'folder') {
       dragPos = 'inside';
@@ -36,11 +41,39 @@
       dragPos = 'after';
     }
     dragOver = true;
+    if (node.type === 'folder' && !node.expanded && dragPos === 'inside') {
+      if (!expandTimer) {
+        expandTimer = setTimeout(() => {
+          node.expanded = true;
+          expandTimer = undefined;
+        }, 800);
+      }
+    } else if (expandTimer) {
+      clearTimeout(expandTimer);
+      expandTimer = undefined;
+    }
+    // Auto-scroll when near viewport edges
+    const scrollParent = itemEl.closest('.tree-scroll') as HTMLElement | null;
+    if (scrollParent) {
+      const pr = scrollParent.getBoundingClientRect();
+      const margin = 40;
+      const distTop = e.clientY - pr.top;
+      const distBottom = pr.bottom - e.clientY;
+      if (distTop < margin) {
+        scrollParent.scrollTop -= 8;
+      } else if (distBottom < margin) {
+        scrollParent.scrollTop += 8;
+      }
+    }
   }
 
   function handleDragLeave() {
     dragOver = false;
     dragPos = null;
+    if (expandTimer) {
+      clearTimeout(expandTimer);
+      expandTimer = undefined;
+    }
   }
 
   function handleDrop(e: DragEvent) {
@@ -106,14 +139,15 @@
 <style>
   .tree-item {
     display: flex; align-items: center; gap: 6px; padding: 6px 8px;
-    border-radius: 6px; cursor: pointer; transition: background 0.15s;
-    position: relative;
+    border-radius: 6px; cursor: grab; transition: background 0.15s;
+    position: relative; user-select: none; -webkit-user-drag: element;
   }
+  .tree-item:active { cursor: grabbing; }
   .tree-item:hover { background: var(--bg-hover); }
   .tree-item.active { background: var(--accent); color: #fff; }
-  .tree-item.drag-over.drag-before { border-top: 2px solid var(--accent); }
-  .tree-item.drag-over.drag-after { border-bottom: 2px solid var(--accent); }
-  .tree-item.drag-over.drag-inside { outline: 2px dashed var(--accent); outline-offset: -2px; }
+  .tree-item.drag-over.drag-before { border-top: 3px solid var(--accent); box-shadow: 0 -2px 4px rgba(100, 150, 255, 0.3); }
+  .tree-item.drag-over.drag-after { border-bottom: 3px solid var(--accent); box-shadow: 0 2px 4px rgba(100, 150, 255, 0.3); }
+  .tree-item.drag-over.drag-inside { outline: 3px dashed var(--accent); outline-offset: -3px; background: rgba(100, 150, 255, 0.08); }
   .toggle { background: none; border: none; color: inherit; cursor: pointer; padding: 0; font-size: 0.7rem; }
   .label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .actions { opacity: 0; transition: opacity 0.2s; display: flex; gap: 2px; }

@@ -96,7 +96,7 @@
   }
 </script>
 
-<div class="tree-container">
+<div class="tree-container tree-scroll">
   <div class="tree-actions">
     <button class="tree-action-btn" title="ملاحظة جديدة" on:click={() => addNote()}>
       <svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="12" y1="18" x2="12" y2="12" /><line x1="9" y1="15" x2="15" y2="15" /></svg>
@@ -114,6 +114,7 @@
 
 <style>
   .tree-container { display: flex; flex-direction: column; gap: 2px; }
+  .tree-container.tree-scroll { overflow-y: auto; overflow-x: hidden; flex: 1; }
   .tree-actions { display: flex; gap: 4px; margin-bottom: 8px; }
   .tree-action-btn {
     background: none; border: 1px solid var(--border); color: var(--fg-muted);

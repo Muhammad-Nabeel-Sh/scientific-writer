@@ -2,6 +2,7 @@ import MarkdownIt from 'markdown-it';
 import katex from '@traptitech/markdown-it-katex';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github.css';
+import 'katex/dist/katex.min.css';
 
 const ARABIC_INDIC = '٠١٢٣٤٥٦٧٨٩';
 const arabicRe = /[\u0600-\u06FF]/;
@@ -53,8 +54,8 @@ const md = new MarkdownIt({
 
 function convertArabicDigits(text: string): string {
   if (!arabicRe.test(text)) return text;
-  // Replace digits outside inline code (backtick-delimited)
-  return text.split(/(`[^`]*`)/g).map((part, i) => {
+  // Replace digits outside inline code and math delimiters
+  return text.split(/(`[^`]*`|\$\$[^$]*\$\$|\$[^$]*\$)/g).map((part, i) => {
     if (i % 2 === 0) {
       return part.replace(/[0-9]/g, d => ARABIC_INDIC[+d]);
     }
@@ -78,10 +79,20 @@ export function renderMarkdown(text: string): string {
     const processed = lines.join('\n');
 
     const html = md.render(processed);
-    return html.replace(
-      /<(p|h[1-6]|li|blockquote|pre)\b/gi,
+    let htmlOut = html.replace(
+      /<(p|h[1-6]|blockquote|pre|table)\b/gi,
       '<$1 dir="auto"',
     );
+    htmlOut = htmlOut.replace(
+      /<(ul|ol)\b[^>]*>/gi,
+      (tag, _p1, offset: number) => {
+        const closeLi = htmlOut.indexOf('</li>', offset);
+        const content = htmlOut.slice(offset, closeLi);
+        const isRtl = /[\u0600-\u06FF]/.test(content);
+        return tag.replace(/(ul|ol)\b/, `$1 dir="${isRtl ? 'rtl' : 'ltr'}"`);
+      },
+    );
+    return htmlOut;
   } catch {
     return '<p style="color:#ff6b6b">خطأ في تحليل المعادلات الرياضية</p>';
   }

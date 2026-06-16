@@ -11,6 +11,8 @@
   let fileInput: HTMLInputElement;
 
   let showHeadingMenu = false;
+  let headingBtnRef: HTMLButtonElement;
+  let headingDropdownStyle = "";
   let showTableDialog = false;
   let showQuranDialog = false;
   let showHadithDialog = false;
@@ -127,6 +129,14 @@
     ta.dispatchEvent(new Event("input", { bubbles: true }));
   }
 
+  function toggleHeadingMenu() {
+    showHeadingMenu = !showHeadingMenu;
+    if (showHeadingMenu && headingBtnRef) {
+      const r = headingBtnRef.getBoundingClientRect();
+      headingDropdownStyle = `position:fixed;top:${r.bottom + 4}px;left:${r.left}px;`;
+    }
+  }
+
   function insertHeading(level: number) {
     insertAtLineStart("#".repeat(level) + " ");
     showHeadingMenu = false;
@@ -139,14 +149,18 @@
   async function onImageSelected() {
     const file = fileInput?.files?.[0];
     if (!file) return;
-    const ext = file.name.split('.').pop() || 'png';
+    const ext = file.name.split(".").pop() || "png";
     const now = new Date();
-    const ts = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
+    const ts = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}_${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}`;
     const fileName = `image_${ts}.${ext}`;
     const arrayBuffer = await file.arrayBuffer();
     const data = Array.from(new Uint8Array(arrayBuffer));
     const workspace = await getWorkspaceDir();
-    const relPath = await invoke('copy_file_to_assets', { workspace, fileName, data });
+    const relPath = await invoke("copy_file_to_assets", {
+      workspace,
+      fileName,
+      data,
+    });
     insertAtCursor(`\n![${file.name}](${relPath})\n`);
     fileInput.value = "";
   }
@@ -280,7 +294,7 @@
         /><line x1="5" y1="12" x2="19" y2="12" /></svg
       >
     </button>
-    <button class="tb" title="تظليل" on:click={() => wrapSelection("==", "نص")}>
+    <!-- <button class="tb" title="تظليل" on:click={() => wrapSelection("==", "نص")}>
       <svg
         viewBox="0 0 24 24"
         stroke="currentColor"
@@ -292,7 +306,7 @@
           d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h7"
         /></svg
       >
-    </button>
+    </button> -->
     <button class="tb" title="كود" on:click={() => wrapSelection("`", "كود")}>
       <svg
         viewBox="0 0 24 24"
@@ -313,7 +327,8 @@
       <button
         class="tb"
         title="عنوان"
-        on:click={() => (showHeadingMenu = !showHeadingMenu)}
+        bind:this={headingBtnRef}
+        on:click={toggleHeadingMenu}
       >
         <svg
           viewBox="0 0 24 24"
@@ -334,7 +349,7 @@
       </button>
       {#if showHeadingMenu}
         <!-- svelte-ignore a11y_no_static_element_interactions, a11y_click_events_have_key_events -->
-        <div class="dropdown" on:click={() => (showHeadingMenu = false)}>
+        <div class="dropdown fixed" style={headingDropdownStyle} on:click={() => (showHeadingMenu = false)}>
           {#each [1, 2, 3, 4, 5, 6] as level}
             <button on:click={() => insertHeading(level)}>H{level}</button>
           {/each}
@@ -790,9 +805,6 @@
     position: relative;
   }
   .dropdown {
-    position: absolute;
-    top: 100%;
-    right: 0;
     z-index: 20;
     background: var(--bg-panel);
     border: 1px solid var(--border);
