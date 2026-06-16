@@ -63,9 +63,10 @@ export function formatVerseRange(verses: Verse[]): string {
   const surah = verses[0].surah;
   const fromAyah = verses[0].ayah;
   const toAyah = verses[verses.length - 1].ayah;
-  const text = verses.map(v => v.text).join(' ﴿');
   if (verses.length === 1) {
     return formatVerse(verses[0]);
   }
+  const parts = verses.map(v => `${v.text} [${v.ayah}]`);
+  const text = parts.join(' ');
   return `> ﴿${text}﴾\n> [${sname}: ${fromAyah}-${toAyah}]`;
 }
