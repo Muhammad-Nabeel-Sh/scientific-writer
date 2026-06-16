@@ -1,0 +1,93 @@
+:root {
+  --bg: #121212;
+  /* --bg-panel: #1a1a1a; */
+  --bg-panel: #1f2428;
+  --bg-hover: #444444;
+  --fg: #e0e0e0;
+  --fg-muted: #888;
+  --border: #1a1e21;
+  --accent: #e24a7d;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --font-serif: 'Amiri', 'Noto Sans Arabic', serif;
+  --font-sans: 'Amiri', 'Noto Sans Arabic', system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; direction: rtl; background: var(--bg); color: var(--fg); font-family: var(--font-serif); }
+
+.app-layout {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.panel {
+  overflow-y: auto;
+  padding: 1rem;
+}
+.panel.left {
+  background: var(--bg-panel);
+}
+.panel.center {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--bg-panel);
+}
+.panel.right {
+  background: #fff;
+  color: #1a1a1a;
+}
+
+.handle {
+  width: 6px;
+  cursor: col-resize;
+  background: var(--border);
+  transition: background 0.2s;
+}
+.handle:hover, .handle:active { background: var(--accent); }
+
+/* Hierarchy Tree */
+.tree-container { display: flex; flex-direction: column; gap: 2px; }
+.tree-item {
+  display: flex; align-items: center; gap: 6px; padding: 6px 8px;
+  border-radius: 6px; cursor: pointer; transition: background 0.15s;
+}
+.tree-item:hover { background: var(--bg-hover); }
+.tree-item.active { background: var(--accent); color: #fff; }
+.toggle { background: none; border: none; color: inherit; cursor: pointer; padding: 0; }
+.label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.actions { opacity: 0; transition: opacity 0.2s; }
+.tree-item:hover .actions { opacity: 1; }
+.actions button { background: none; border: none; cursor: pointer; padding: 2px 4px; font-size: 0.8rem; }
+.children { margin-inline-start: 16px; }
+
+/* Editor */
+.editor {
+  width: 100%; height: 100%; background: transparent; color: var(--fg);
+  border: none; outline: none; resize: none; font-family: var(--font-mono);
+  font-size: 1.1rem; line-height: 1.6; direction: auto;
+  unicode-bidi: plaintext; text-align: start;
+}
+
+/* Preview */
+.preview { line-height: 1.7; unicode-bidi: plaintext; text-align: start; padding: 1rem 2rem; }
+.preview h1, .preview h2, .preview h3 { margin: 1.2em 0 0.5em; color: #111; }
+.preview p { margin-bottom: 1em; }
+.preview a { color: #1a73e8; }
+.preview blockquote { border-inline-start: 3px solid #ccc; padding-inline-start: 1rem; color: #555; }
+.preview code { background: #f0f0f0; padding: 2px 6px; border-radius: 4px; font-family: var(--font-mono); color: #222; }
+.preview pre { background: #f5f5f5; padding: 1rem; border-radius: 6px; overflow-x: auto; color: #222; }
+.preview table { width: 100%; border-collapse: collapse; margin: 1em 0; }
+.preview th, .preview td { border: 1px solid #ddd; padding: 8px; }
+.preview th { background: #eee; color: #111; }
+
+/* KaTeX */
+.katex { font-size: 1.1em; }
+.katex-display { margin: 1em 0; text-align: center; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #555; }

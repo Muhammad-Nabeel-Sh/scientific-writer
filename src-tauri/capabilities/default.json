@@ -1,0 +1,7 @@
+{
+  "identifier": "default",
+  "description": "Default capabilities",
+  "permissions": [
+    "core:default"
+  ]
+}
