@@ -34,3 +34,8 @@ export const editorRef = writable<HTMLTextAreaElement | null>(null);
 export const previewRef = writable<HTMLElement | null>(null);
 export const activeHeadingId = writable<string | null>(null);
 export const outlineItems = derived(noteContent, ($c) => parseOutline($c));
+
+import type { BibEntry } from './bibliography';
+export const bibEntries = writable<BibEntry[]>([]);
+export const citedKeys = writable<string[]>([]);
+export const missingCitationKeys = writable<string[]>([]);

@@ -1,8 +1,10 @@
 <script lang="ts">
-  import { hierarchy, activeNoteId, noteContent } from "$lib/stores";
-  import { initWorkspace, readNote } from "$lib/fs";
+  import { hierarchy, activeNoteId, noteContent, bibEntries } from "$lib/stores";
+  import { initWorkspace, readNote, readBibliography } from "$lib/fs";
+  import { parseBibTeX } from "$lib/bibliography";
   import HierarchyTree from "./components/HierarchyTree.svelte";
   import Outline from "./components/Outline.svelte";
+  import Stats from "./components/Stats.svelte";
   import Editor from "./components/Editor.svelte";
   import Preview from "./components/Preview.svelte";
 
@@ -23,6 +25,10 @@
     setProportions();
     const data = await initWorkspace();
     $hierarchy = data;
+    const bibContent = await readBibliography();
+    if (bibContent) {
+      $bibEntries = parseBibTeX(bibContent);
+    }
   }
 
   $: if ($activeNoteId) {
@@ -61,6 +67,7 @@
   <aside class="panel left" style="width: {leftWidth}px;">
     <HierarchyTree />
     <Outline />
+    <Stats />
   </aside>
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="handle" on:mousedown={(e) => startDrag(e, "left")}></div>

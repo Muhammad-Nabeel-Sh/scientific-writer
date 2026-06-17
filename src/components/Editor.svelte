@@ -1,5 +1,11 @@
 <script lang="ts">
-  import { noteContent, activeNoteId, editorRef, activeHeadingId, outlineItems } from "$lib/stores";
+  import {
+    noteContent,
+    activeNoteId,
+    editorRef,
+    activeHeadingId,
+    outlineItems,
+  } from "$lib/stores";
   import { get } from "svelte/store";
   import { writeNote, getWorkspaceDir } from "$lib/fs";
   import { invoke } from "@tauri-apps/api/core";
@@ -84,7 +90,8 @@
 
   function onEditorScroll() {
     if (!textareaRef) return;
-    const lineHeight = parseFloat(getComputedStyle(textareaRef).lineHeight) || 20;
+    const lineHeight =
+      parseFloat(getComputedStyle(textareaRef).lineHeight) || 20;
     const currentLine = Math.floor(textareaRef.scrollTop / lineHeight);
     const items = get(outlineItems);
     let nearest: string | null = null;
@@ -211,7 +218,10 @@
         ).join("|") +
         " |",
     ).join("\n");
-    insertAtCursor("\n" + header + "\n" + divider + "\n" + rows + "\n");
+    const captionLine = isArabic ? "جدول: " : "Table: ";
+    insertAtCursor(
+      "\n" + captionLine + "\n" + header + "\n" + divider + "\n" + rows + "\n",
+    );
     showTableDialog = false;
   }
 
@@ -367,19 +377,6 @@
         /><line x1="5" y1="12" x2="19" y2="12" /></svg
       >
     </button>
-    <!-- <button class="tb" title="تظليل" on:click={() => wrapSelection("==", "نص")}>
-      <svg
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        fill="none"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        ><path d="M9 11l3 3L22 4l-3-3-10 10z" /><path
-          d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h7"
-        /></svg
-      >
-    </button> -->
     <button class="tb" title="كود" on:click={() => wrapSelection("`", "كود")}>
       <svg
         viewBox="0 0 24 24"
@@ -477,52 +474,6 @@
         /></svg
       >
     </button>
-    <button
-      class="tb"
-      title="قائمة مهام"
-      on:click={() => insertAtLineStart("- [ ] ")}
-    >
-      <svg
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        fill="none"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        ><rect x="3" y="3" width="18" height="18" rx="2" /><polyline
-          points="9 12 11 14 15 10"
-        /></svg
-      >
-    </button>
-    <button
-      class="tb"
-      title="قائمة تعريفات"
-      on:click={() => insertAtCursor("\nمصطلح\n: تعريف المصطلح\n")}
-    >
-      <svg
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        fill="none"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        ><line x1="4" y1="6" x2="20" y2="6" /><line
-          x1="8"
-          y1="10"
-          x2="20"
-          y2="10"
-        /><line x1="12" y1="14" x2="20" y2="14" /><line
-          x1="16"
-          y1="18"
-          x2="20"
-          y2="18"
-        /><text x="4" y="14" font-size="11" stroke="none" fill="currentColor"
-          >:</text
-        ><text x="4" y="18" font-size="11" stroke="none" fill="currentColor"
-          >:</text
-        ></svg
-      >
-    </button>
 
     <div class="sep"></div>
 
@@ -610,46 +561,6 @@
           x2="9"
           y2="21"
         /><line x1="15" y1="3" x2="15" y2="21" /></svg
-      >
-    </button>
-    <button
-      class="tb"
-      title="كتلة كود"
-      on:click={() => insertAtCursor("\n```\n\n```\n")}
-    >
-      <svg
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        fill="none"
-        stroke-width="2.5"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        ><polyline points="8 7 3 12 8 17" /><polyline
-          points="16 7 21 12 16 17"
-        /><line x1="14" y1="4" x2="10" y2="20" /></svg
-      >
-    </button>
-    <button class="tb" title="معادلة" on:click={insertEquation}>
-      <svg
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        fill="none"
-        stroke-width="2.5"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        ><text
-          x="3"
-          y="18"
-          font-size="16"
-          font-style="italic"
-          stroke="none"
-          fill="currentColor">Σ</text
-        ><line x1="16" y1="6" x2="22" y2="6" /><line
-          x1="16"
-          y1="12"
-          x2="22"
-          y2="12"
-        /><line x1="16" y1="18" x2="22" y2="18" /></svg
       >
     </button>
     <button
@@ -746,6 +657,24 @@
         <path d="M15 5l4 4" />
       </svg>
       <span>شعر</span>
+    </button>
+    <button class="tb-quran" on:click={() => insertAtCursor("\n```\n\n```\n")}>
+      <svg
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        fill="none"
+        stroke-width="2.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        ><polyline points="8 7 3 12 8 17" /><polyline
+          points="16 7 21 12 16 17"
+        /><line x1="14" y1="4" x2="10" y2="20" /></svg
+      >
+      <span>كود</span>
+    </button>
+    <button class="tb-quran" on:click={insertEquation}>
+      Σ
+      <span>معادلة</span>
     </button>
   </div>
 </div>

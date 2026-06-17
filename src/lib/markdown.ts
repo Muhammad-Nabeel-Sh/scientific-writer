@@ -3,6 +3,8 @@ import katex from '@traptitech/markdown-it-katex';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github.css';
 import 'katex/dist/katex.min.css';
+import type { BibEntry } from './bibliography';
+import { replaceCitations, generateBibliographyHtml } from './bibliography';
 
 const ARABIC_INDIC = '٠١٢٣٤٥٦٧٨٩';
 const arabicRe = /[\u0600-\u06FF]/;
@@ -118,7 +120,7 @@ md.renderer.rules.image = (tokens, idx, options, env, self) => {
 function convertArabicDigits(text: string): string {
   if (!arabicRe.test(text)) return text;
   // Replace digits outside inline code and math delimiters
-  return text.split(/(`[^`]*`|\$\$[^$]*\$\$|\$[^$]*\$|!\[[^\]]*\]\([^)]*\)|\[[^\]]*\]\([^)]*\))/g).map((part, i) => {
+  return text.split(/(`[^`]*`|\$\$[^$]*\$\$|\$[^$]*\$|!\[[^\]]*\]\([^)]*\)|\[[^\]]*\]\([^)]*\)|\[\@[^\]]*\])/g).map((part, i) => {
     if (i % 2 === 0) {
       return part.replace(/[0-9]/g, d => ARABIC_INDIC[+d]);
     }
@@ -131,6 +133,51 @@ export interface FigureInfo {
   number: number;
   src: string;
   caption: string;
+}
+
+export interface TableInfo {
+  id: string;
+  number: number;
+  caption: string;
+}
+
+export function parseTables(markdown: string): TableInfo[] {
+  const tables: TableInfo[] = [];
+  const lines = markdown.split('\n');
+  let num = 0;
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].trimStart().startsWith('|')) {
+      num++;
+      tables.push({
+        id: `tbl-${num}`,
+        number: num,
+        caption: '',
+      });
+      continue;
+    }
+    const capMatch = lines[i].match(/^(?:Table|جدول):\s*(.*)/);
+    if (capMatch) {
+      let caption = capMatch[1].trim();
+      let j = i + 1;
+      while (j < lines.length && !lines[j].trimStart().startsWith('|')) {
+        if (lines[j].trim()) {
+          if (caption) caption += ' ';
+          caption += lines[j].trim();
+        }
+        j++;
+      }
+      if (j < lines.length && lines[j].trimStart().startsWith('|')) {
+        num++;
+        tables.push({
+          id: `tbl-${num}`,
+          number: num,
+          caption,
+        });
+        i = j;
+      }
+    }
+  }
+  return tables;
 }
 
 export interface OutlineItem {
@@ -170,9 +217,19 @@ export function parseOutline(markdown: string): OutlineItem[] {
   return items;
 }
 
-export function renderMarkdown(text: string): string {
+let lastUsedKeys: string[] = [];
+let lastMissingKeys: string[] = [];
+
+export function getLastCitationResult(): { usedKeys: string[]; missingKeys: string[] } {
+  return { usedKeys: lastUsedKeys, missingKeys: lastMissingKeys };
+}
+
+export function renderMarkdown(text: string, bibEntries?: BibEntry[]): string {
   try {
     resetFigureState();
+    lastUsedKeys = [];
+    lastMissingKeys = [];
+
     // Pre-process: convert digits and turn soft returns into hard returns
     const lines = text.split('\n');
     let inFence = false;
@@ -192,7 +249,41 @@ export function renderMarkdown(text: string): string {
         resultLines.push(''); // blank line → hard return (new paragraph)
       }
     }
-    const processed = resultLines.join('\n');
+
+    // Extract table captions (remove caption lines, store text)
+    const captionMap = new Map<number, string>();
+    const cleanLines: string[] = [];
+    let rawTblIdx = 0;
+    for (let i = 0; i < resultLines.length; i++) {
+      const capMatch = resultLines[i].match(/^(?:Table|جدول):\s*(.*)/);
+      if (capMatch) {
+        let caption = capMatch[1].trim();
+        let j = i + 1;
+        while (j < resultLines.length && !resultLines[j].trimStart().startsWith('|')) {
+          if (resultLines[j].trim()) {
+            if (caption) caption += ' ';
+            caption += resultLines[j].trim();
+          }
+          j++;
+        }
+        if (j < resultLines.length && resultLines[j].trimStart().startsWith('|')) {
+          captionMap.set(rawTblIdx, caption);
+          i = j - 1; // will be incremented to the table-start line
+          continue;
+        }
+      }
+      if (resultLines[i].trimStart().startsWith('|')) rawTblIdx++;
+      cleanLines.push(resultLines[i]);
+    }
+    let processed = cleanLines.join('\n');
+
+    // Citation replacement
+    if (bibEntries && bibEntries.length > 0) {
+      const result = replaceCitations(processed, bibEntries);
+      processed = result.text;
+      lastUsedKeys = result.usedKeys;
+      lastMissingKeys = result.missingKeys;
+    }
 
     const html = md.render(processed);
     let htmlOut = html.replace(
@@ -214,6 +305,27 @@ export function renderMarkdown(text: string): string {
       const isRtl = /[\u0600-\u06FF]/.test(content);
       return `<table dir="${isRtl ? 'rtl' : 'ltr'}"`;
     });
+
+    // Inject table captions — every table gets an auto-numbered caption
+    let tblIdx = 0;
+    htmlOut = htmlOut.replace(/<table\b[^>]*>[\s\S]*?<\/table>/g, (match) => {
+      const caption = captionMap.get(tblIdx) || '';
+      const num = tblIdx + 1;
+      tblIdx++;
+      const hasArabic = /[\u0600-\u06FF]/.test(match);
+      const label = hasArabic ? 'جدول' : 'Table';
+      const id = `tbl-${num}`;
+      const captionSuffix = caption ? `: ${md.utils.escapeHtml(caption)}` : '';
+      return `<figure class="table-figure" id="${id}">
+        <figcaption dir="auto">${label} ${num}${captionSuffix}</figcaption>
+        ${match}
+      </figure>`;
+    });
+    // Append bibliography
+    if (bibEntries && bibEntries.length > 0 && (lastUsedKeys.length > 0 || lastMissingKeys.length > 0)) {
+      htmlOut += generateBibliographyHtml(lastUsedKeys, bibEntries, lastMissingKeys);
+    }
+
     return htmlOut;
   } catch {
     return '<p style="color:#ff6b6b">خطأ في تحليل المعادلات الرياضية</p>';

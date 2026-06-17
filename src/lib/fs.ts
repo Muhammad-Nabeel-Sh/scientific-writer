@@ -87,3 +87,12 @@ export async function deleteNode(id: string) {
 export async function moveNote(oldId: string, newParentId: string) {
   // Simplified: just update hierarchy JSON. Actual file move handled by hierarchy sync.
 }
+
+export async function readBibliography(): Promise<string> {
+  const dir = await getWorkspaceDir();
+  try {
+    return await invoke<string>('read_text_file', { path: `${dir}/references.bib` });
+  } catch {
+    return '';
+  }
+}

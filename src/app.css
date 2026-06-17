@@ -101,6 +101,17 @@ html, body { height: 100%; overflow: hidden; direction: rtl; background: var(--b
   font-style: italic;
   text-align: center;
 }
+.preview figure.table-figure {
+  margin: 1.5rem 0;
+  overflow-x: auto;
+}
+.preview figure.table-figure figcaption {
+  font-size: 0.9rem;
+  color: #555;
+  margin-bottom: 0.5rem;
+  font-style: italic;
+  text-align: center;
+}
 .preview img { max-width: 100%; height: auto; }
 .preview .katex, .preview .katex-display, .preview .katex-block { direction: ltr; unicode-bidi: isolate; }
 
@@ -155,6 +166,20 @@ html, body { height: 100%; overflow: hidden; direction: rtl; background: var(--b
     box-sizing: border-box;
   }
 }
+
+/* Bibliography */
+.preview .bib-sep { margin: 2rem 0 1rem; border: none; border-top: 1px solid #ccc; }
+.preview .bibliography { margin: 1rem 0; }
+.preview .bibliography h2 { font-size: 1.3rem; margin-bottom: 0.8rem; color: #111; }
+.preview .bibliography ol { padding-inline-start: 2rem; }
+.preview .bibliography li { margin-bottom: 0.5rem; line-height: 1.6; font-size: 0.9rem; }
+.preview .bibliography li em { font-style: italic; }
+.preview .bibliography li.missing-ref { color: #c00; }
+.preview .bibliography li.missing-ref em { font-style: normal; font-weight: bold; }
+.preview .missing-citations { margin-top: 1rem; padding: 0.5rem 1rem; background: #fff3cd; border-inline-start: 3px solid #ffc107; border-radius: 4px; }
+.preview .missing-citations p { margin-bottom: 0.3rem; font-weight: bold; color: #856404; }
+.preview .missing-citations ul { margin: 0; padding-inline-start: 1.5rem; }
+.preview .missing-citations li { font-family: var(--font-mono); font-size: 0.85rem; color: #856404; }
 
 /* KaTeX */
 .katex { font-size: 1.1em; }
