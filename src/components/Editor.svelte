@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { noteContent, activeNoteId } from "$lib/stores";
+  import { noteContent, activeNoteId, editorRef, activeHeadingId, outlineItems } from "$lib/stores";
+  import { get } from "svelte/store";
   import { writeNote, getWorkspaceDir } from "$lib/fs";
   import { invoke } from "@tauri-apps/api/core";
   import { debounce } from "$lib/utils";
@@ -76,7 +77,26 @@
     saveTimeout = setTimeout(debouncedSave, 300);
   }
 
-  $: if (textareaRef) textareaRef.focus();
+  $: if (textareaRef) {
+    textareaRef.focus();
+    $editorRef = textareaRef;
+  }
+
+  function onEditorScroll() {
+    if (!textareaRef) return;
+    const lineHeight = parseFloat(getComputedStyle(textareaRef).lineHeight) || 20;
+    const currentLine = Math.floor(textareaRef.scrollTop / lineHeight);
+    const items = get(outlineItems);
+    let nearest: string | null = null;
+    for (const item of items) {
+      if (item.lineIndex <= currentLine) {
+        nearest = item.id;
+      } else {
+        break;
+      }
+    }
+    $activeHeadingId = nearest;
+  }
 
   function insertAtCursor(text: string) {
     pushHistory();
@@ -218,6 +238,59 @@
     ta.focus();
     ta.dispatchEvent(new Event("input", { bubbles: true }));
   }
+
+  function handleKeydown(e: KeyboardEvent) {
+    if ((e.ctrlKey || e.metaKey) && e.key === "z") {
+      e.preventDefault();
+      undo();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === "y") {
+      e.preventDefault();
+      redo();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+      e.preventDefault();
+      debouncedSave();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === "b") {
+      e.preventDefault();
+      wrapSelection("**", "نص");
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === "i") {
+      e.preventDefault();
+      wrapSelection("*", "نص");
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === "t") {
+      e.preventDefault();
+      showTableDialog = true;
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === "l") {
+      e.preventDefault();
+      const ta = textareaRef;
+      const sel = ta.value.substring(ta.selectionStart, ta.selectionEnd);
+      sel ? wrapSelection("[", "](url)") : insertAtCursor("[نص الرابط](url)");
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === "q") {
+      e.preventDefault();
+      insertAtLineStart("> ");
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.code.startsWith("Digit")) {
+      const level = parseInt(e.code.slice(-1));
+      if (level >= 1 && level <= 6) {
+        e.preventDefault();
+        insertHeading(level);
+        return;
+      }
+    }
+  }
 </script>
 
 <div class="editor-wrapper">
@@ -329,27 +402,17 @@
         title="عنوان"
         bind:this={headingBtnRef}
         on:click={toggleHeadingMenu}
+        style="padding:3px 8px"
       >
-        <svg
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          fill="none"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          ><text
-            x="4"
-            y="18"
-            font-size="16"
-            font-weight="bold"
-            stroke="none"
-            fill="currentColor">H</text
-          ><polyline points="18 15 21 12 18 9" /></svg
-        >
+        H1
       </button>
       {#if showHeadingMenu}
         <!-- svelte-ignore a11y_no_static_element_interactions, a11y_click_events_have_key_events -->
-        <div class="dropdown fixed" style={headingDropdownStyle} on:click={() => (showHeadingMenu = false)}>
+        <div
+          class="dropdown fixed"
+          style={headingDropdownStyle}
+          on:click={() => (showHeadingMenu = false)}
+        >
           {#each [1, 2, 3, 4, 5, 6] as level}
             <button on:click={() => insertHeading(level)}>H{level}</button>
           {/each}
@@ -632,20 +695,8 @@
     class="editor"
     value={content}
     on:input={handleInput}
-    on:keydown={(e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "z") {
-        e.preventDefault();
-        undo();
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key === "y") {
-        e.preventDefault();
-        redo();
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key === "s") {
-        e.preventDefault();
-        debouncedSave();
-      }
-    }}
+    on:keydown={handleKeydown}
+    on:scroll={onEditorScroll}
   ></textarea>
 
   <div class="bottom-bar">

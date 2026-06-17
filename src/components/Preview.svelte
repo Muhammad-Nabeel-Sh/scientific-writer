@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { noteContent } from "$lib/stores";
+  import { noteContent, previewRef } from "$lib/stores";
   import { renderMarkdown } from "$lib/markdown";
   import { getWorkspaceDir } from "$lib/fs";
   import { convertFileSrc } from "@tauri-apps/api/core";
@@ -7,6 +7,9 @@
   $: content = $noteContent;
 
   let workspaceDir = "";
+  let previewEl: HTMLDivElement;
+
+  $: if (previewEl) $previewRef = previewEl;
 
   async function init() {
     workspaceDir = await getWorkspaceDir();
@@ -24,4 +27,4 @@
   $: html = resolveAssets(renderMarkdown(content));
 </script>
 
-<div class="preview">{@html html}</div>
+<div bind:this={previewEl} class="preview" dir="auto">{@html html}</div>

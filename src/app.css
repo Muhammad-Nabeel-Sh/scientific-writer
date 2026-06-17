@@ -71,8 +71,9 @@ html, body { height: 100%; overflow: hidden; direction: rtl; background: var(--b
 }
 
 /* Preview */
-.preview { line-height: 1.7; text-align: start; padding: 1rem 2rem; direction: ltr; }
-.preview :is(p, h1, h2, h3, h4, h5, h6, blockquote, pre, table) { direction: rtl; unicode-bidi: plaintext; }
+.preview { line-height: 1.7; padding: 1rem 2rem; direction: ltr; }
+.preview [dir] { text-align: start; }
+.preview :is(pre, table) { direction: ltr; }
 .preview :is(ul, ol) { direction: auto; unicode-bidi: plaintext; }
 .preview h1, .preview h2, .preview h3 { margin: 1.2em 0 0.5em; color: #111; }
 .preview p { margin-bottom: 1em; }
@@ -83,6 +84,23 @@ html, body { height: 100%; overflow: hidden; direction: rtl; background: var(--b
 .preview table { width: 100%; border-collapse: collapse; margin: 1em 0; }
 .preview th, .preview td { border: 1px solid #ddd; padding: 8px; }
 .preview th { background: #eee; color: #111; }
+.preview figure.figure {
+  text-align: center;
+  margin: 1.5rem 0;
+  clear: both;
+}
+.preview figure.figure img {
+  max-width: 90%;
+  height: auto;
+  border-radius: 4px;
+}
+.preview figure.figure figcaption {
+  font-size: 0.9rem;
+  color: #555;
+  margin-top: 0.5rem;
+  font-style: italic;
+  text-align: center;
+}
 .preview img { max-width: 100%; height: auto; }
 .preview .katex, .preview .katex-display, .preview .katex-block { direction: ltr; unicode-bidi: isolate; }
 

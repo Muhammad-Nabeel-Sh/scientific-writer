@@ -2,6 +2,7 @@
   import { hierarchy, activeNoteId, noteContent } from "$lib/stores";
   import { initWorkspace, readNote } from "$lib/fs";
   import HierarchyTree from "./components/HierarchyTree.svelte";
+  import Outline from "./components/Outline.svelte";
   import Editor from "./components/Editor.svelte";
   import Preview from "./components/Preview.svelte";
 
@@ -59,6 +60,7 @@
 <div class="app-layout">
   <aside class="panel left" style="width: {leftWidth}px;">
     <HierarchyTree />
+    <Outline />
   </aside>
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="handle" on:mousedown={(e) => startDrag(e, "left")}></div>

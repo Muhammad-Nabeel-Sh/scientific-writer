@@ -1,4 +1,5 @@
 import { writable, derived } from 'svelte/store';
+import { parseOutline } from './markdown';
 
 export interface TreeNode {
   id: string;
@@ -28,3 +29,8 @@ export const activeNote = derived([hierarchy, activeNoteId], ([$hierarchy, $id])
   };
   return find($hierarchy);
 });
+
+export const editorRef = writable<HTMLTextAreaElement | null>(null);
+export const previewRef = writable<HTMLElement | null>(null);
+export const activeHeadingId = writable<string | null>(null);
+export const outlineItems = derived(noteContent, ($c) => parseOutline($c));
