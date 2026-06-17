@@ -41,6 +41,7 @@ scientific-writer/
 │   │   ├── TreeItem.svelte   # Recursive tree node component
 │   │   ├── Outline.svelte    # Collapsible heading outline in sidebar
 │   │   ├── Stats.svelte      # Collapsible statistics panel in sidebar
+│   │   ├── CitationDialog.svelte # Citation picker — search bib entries, insert [@key]
 │   │   ├── QuranDialog.svelte    # Quran search & insert dialog
 │   │   └── HadithDialog.svelte   # Hadith search & insert dialog
 │   │
@@ -87,9 +88,10 @@ scientific-writer/
         ├── [left panel] Outline
         ├── [left panel] Stats
         ├── [center] Editor
-        │     └── QuranDialog   (conditional overlay)
-        │     └── HadithDialog  (conditional overlay)
-        │     └── table dialog  (inline conditional)
+│     └── CitationDialog   (conditional overlay)
+│     └── QuranDialog      (conditional overlay)
+│     └── HadithDialog     (conditional overlay)
+│     └── table dialog     (inline conditional)
         └── [right panel] Preview
 ```
 
@@ -378,6 +380,17 @@ All logic in `src/lib/bibliography.ts`. Formatters are isolated functions, desig
 - Keys cited via `[@key]` that don't exist in `references.bib` → tracked in `missingCitationKeys` store
 - In-text: shown as `(?key?)` inline
 - Bibliography: warning box with `Missing references` / `المراجع غير الموجودة` listing all missing keys
+
+### Citation picker dialog (`CitationDialog.svelte`)
+
+Opened via the "استشهاد" button in the editor's bottom bar.
+
+- **Search**: Fuse.js fuzzy search across `author`, `title`, `year` fields (threshold 0.4)
+- **Results**: Shows author, year, title, citation key, and entry type per row
+- **Insert**: Click or Enter → inserts `[@key]` at cursor via Editor's `insertAtCursor`
+- **Keyboard**: `↑`/`↓` navigate results, `Enter` selects, `Escape` closes
+- **Empty state**: Shows message if `references.bib` is missing or empty
+- **Architecture**: Reads from `bibEntries` store (populated by `App.svelte` on init). A future Zotero backend would replace the store's data source while the dialog code stays unchanged.
 
 ### CSL future support
 

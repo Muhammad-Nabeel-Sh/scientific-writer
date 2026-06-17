@@ -5,13 +5,17 @@
     editorRef,
     activeHeadingId,
     outlineItems,
+    bibEntries,
   } from "$lib/stores";
   import { get } from "svelte/store";
-  import { writeNote, getWorkspaceDir } from "$lib/fs";
+  import { writeNote, writeBibliography, getWorkspaceDir } from "$lib/fs";
+  import { parseBibTeX } from "$lib/bibliography";
   import { invoke } from "@tauri-apps/api/core";
   import { debounce } from "$lib/utils";
   import QuranDialog from "./QuranDialog.svelte";
   import HadithDialog from "./HadithDialog.svelte";
+  import CitationDialog from "./CitationDialog.svelte";
+  import EquationDialog from "./EquationDialog.svelte";
 
   let textareaRef: HTMLTextAreaElement;
   let saveTimeout: ReturnType<typeof setTimeout>;
@@ -23,6 +27,8 @@
   let showTableDialog = false;
   let showQuranDialog = false;
   let showHadithDialog = false;
+  let showCitationDialog = false;
+  let showEquationDialog = false;
   let tableRows = 3;
   let tableCols = 4;
   let tableLang: "arabic" | "english" = "arabic";
@@ -37,7 +43,12 @@
   const debouncedSave = debounce(async () => {
     if (!$activeNoteId || !content.trim()) return;
     try {
-      await writeNote($activeNoteId, content);
+      if ($activeNoteId === '__references__') {
+        await writeBibliography(content);
+        $bibEntries = parseBibTeX(content);
+      } else {
+        await writeNote($activeNoteId, content);
+      }
     } catch {
       /* ignore */
     }
@@ -232,8 +243,8 @@
     insertAtCursor(`[^${n}]تمت الإضافة\n\n[^${n}]: `);
   }
 
-  function insertEquation() {
-    insertAtCursor("\n$$\n\n$$\n");
+  function openEquationDialog() {
+    showEquationDialog = true;
   }
 
   function insertPoetry() {
@@ -598,6 +609,12 @@
   {#if showHadithDialog}
     <HadithDialog on:close={() => (showHadithDialog = false)} {appendText} />
   {/if}
+  {#if showCitationDialog}
+    <CitationDialog on:close={() => (showCitationDialog = false)} {insertAtCursor} />
+  {/if}
+  {#if showEquationDialog}
+    <EquationDialog on:close={() => (showEquationDialog = false)} {insertAtCursor} />
+  {/if}
 
   <textarea
     bind:this={textareaRef}
@@ -658,6 +675,23 @@
       </svg>
       <span>شعر</span>
     </button>
+    <button class="tb-quran" on:click={() => (showCitationDialog = true)}>
+      <svg
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        fill="none"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+        <polyline points="14 2 14 8 20 8" />
+        <line x1="16" y1="13" x2="8" y2="13" />
+        <line x1="16" y1="17" x2="8" y2="17" />
+        <polyline points="10 9 9 9 8 9" />
+      </svg>
+      <span>استشهاد</span>
+    </button>
     <button class="tb-quran" on:click={() => insertAtCursor("\n```\n\n```\n")}>
       <svg
         viewBox="0 0 24 24"
@@ -672,7 +706,7 @@
       >
       <span>كود</span>
     </button>
-    <button class="tb-quran" on:click={insertEquation}>
+    <button class="tb-quran" on:click={openEquationDialog}>
       Σ
       <span>معادلة</span>
     </button>

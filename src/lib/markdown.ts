@@ -54,12 +54,46 @@ const md = new MarkdownIt({
   displayMode: true,
 });
 
+export interface EquationInfo {
+  id: string;
+  number: number;
+  label?: string;
+  latex: string;
+}
+
+export function parseEquationsFromText(text: string): EquationInfo[] {
+  const result: EquationInfo[] = [];
+  let num = 0;
+  const parts = text.split(/^(?:```[\s\S]*?```)$/gm);
+  for (let pi = 0; pi < parts.length; pi += 2) {
+    parts[pi].replace(/\$\$[\s\S]*?\$\$(?:\s*\{#eq:(\w+)\}\s*)?/g, (match) => {
+      num++;
+      const latexMatch = match.match(/\$\$([\s\S]*?)\$\$/);
+      const latex = latexMatch ? latexMatch[1].trim() : '';
+      const labelMatch = match.match(/\{#eq:(\w+)\}/);
+      if (labelMatch) {
+        result.push({ id: `eq:${labelMatch[1]}`, number: num, label: labelMatch[1], latex });
+      } else {
+        result.push({ id: `eq-${num}`, number: num, latex });
+      }
+      return match;
+    });
+  }
+  return result;
+}
+
 let figCounter = 0;
 let figUsedIds = new Set<string>();
+let equationInfos: EquationInfo[] = [];
 
 function resetFigureState() {
   figCounter = 0;
   figUsedIds = new Set<string>();
+  equationInfos = [];
+}
+
+export function getLastEquationResult(): EquationInfo[] {
+  return equationInfos;
 }
 
 function genFigureId(src: string): string {
@@ -119,8 +153,8 @@ md.renderer.rules.image = (tokens, idx, options, env, self) => {
 
 function convertArabicDigits(text: string): string {
   if (!arabicRe.test(text)) return text;
-  // Replace digits outside inline code and math delimiters
-  return text.split(/(`[^`]*`|\$\$[^$]*\$\$|\$[^$]*\$|!\[[^\]]*\]\([^)]*\)|\[[^\]]*\]\([^)]*\)|\[\@[^\]]*\])/g).map((part, i) => {
+  // Replace digits outside inline code, math, URLs, citations, equation labels, and equation references
+  return text.split(/(`[^`]*`|\$\$[^$]*\$\$|\$[^$]*\$|!\[[^\]]*\]\([^)]*\)|\[[^\]]*\]\([^)]*\)|\[\@[^\]]*\]|\[ref:[^\]]*\]|\{#eq:[^}]*\})/g).map((part, i) => {
     if (i % 2 === 0) {
       return part.replace(/[0-9]/g, d => ARABIC_INDIC[+d]);
     }
@@ -277,6 +311,27 @@ export function renderMarkdown(text: string, bibEntries?: BibEntry[]): string {
     }
     let processed = cleanLines.join('\n');
 
+    // Equation parsing: extract $$...$$ blocks outside code fences, strip {#eq:label}
+    let eqNum = 0;
+    equationInfos = [];
+    const eqParts = processed.split(/^(?:```[\s\S]*?```)$/gm);
+    for (let pi = 0; pi < eqParts.length; pi += 2) {
+      eqParts[pi] = eqParts[pi].replace(/\$\$[\s\S]*?\$\$(?:\s*\{#eq:(\w+)\}\s*)?/g, (match) => {
+        eqNum++;
+        const latexMatch = match.match(/\$\$([\s\S]*?)\$\$/);
+        const latex = latexMatch ? latexMatch[1].trim() : '';
+        const labelMatch = match.match(/\{#eq:(\w+)\}/);
+        if (labelMatch) {
+          const label = labelMatch[1];
+          equationInfos.push({ id: `eq:${label}`, number: eqNum, label, latex });
+          return match.replace(/\s*\{#eq:\w+\}\s*$/, '');
+        }
+        equationInfos.push({ id: `eq-${eqNum}`, number: eqNum, latex });
+        return match;
+      });
+    }
+    processed = eqParts.join('');
+
     // Citation replacement
     if (bibEntries && bibEntries.length > 0) {
       const result = replaceCitations(processed, bibEntries);
@@ -321,6 +376,34 @@ export function renderMarkdown(text: string, bibEntries?: BibEntry[]): string {
         ${match}
       </figure>`;
     });
+
+    // Wrap displayed equations with auto-numbered figures
+    let eqIdx = 0;
+    htmlOut = htmlOut.replace(
+      /<p[^>]*class="katex-block[^"]*"[^>]*>[\s\S]*?<\/p>/g,
+      (match) => {
+        const eq = equationInfos[eqIdx++];
+        if (!eq) return match;
+        return `<figure class="equation-figure" id="${eq.id}">${match}<figcaption class="eq-number">(${eq.number})</figcaption></figure>`;
+      },
+    );
+
+    // Replace [ref:eq:label] / [ref:eq:N] with anchor links
+    if (equationInfos.length > 0) {
+      const refMap = new Map<string, EquationInfo>();
+      for (const eq of equationInfos) {
+        if (eq.label) refMap.set(eq.label, eq);
+        refMap.set(String(eq.number), eq);
+      }
+      htmlOut = htmlOut.replace(/\[ref:eq:([^\]]+)\]/g, (_match, ref) => {
+        const eq = refMap.get(ref);
+        if (eq) {
+          return `<a href="#${eq.id}" class="eq-ref">(${eq.number})</a>`;
+        }
+        return `<span class="eq-ref-unresolved">[ref:eq:${ref}]</span>`;
+      });
+    }
+
     // Append bibliography
     if (bibEntries && bibEntries.length > 0 && (lastUsedKeys.length > 0 || lastMissingKeys.length > 0)) {
       htmlOut += generateBibliographyHtml(lastUsedKeys, bibEntries, lastMissingKeys);

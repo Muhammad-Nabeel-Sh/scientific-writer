@@ -96,3 +96,49 @@ export async function readBibliography(): Promise<string> {
     return '';
   }
 }
+
+const BIB_TEMPLATE = `% references.bib — ملف المراجع العلمية
+% أضف مراجعك هنا بصيغة BibTeX
+% Add your references here in BibTeX format
+
+% مثال - مقالة دورية / Journal article:
+%@article{key2024,
+%  author = {Last, First},
+%  title = {Article Title},
+%  journal = {Journal Name},
+%  year = {2024},
+%  volume = {10},
+%  number = {2},
+%  pages = {100--110}
+%}
+
+% مثال - كتاب / Book:
+%@book{key2023,
+%  author = {Last, First},
+%  title = {Book Title},
+%  publisher = {Publisher},
+%  year = {2023}
+%}
+
+% مثال - مؤتمر / Conference paper:
+%@inproceedings{key2022,
+%  author = {Last, First},
+%  title = {Paper Title},
+%  booktitle = {Proceedings of the Conference},
+%  year = {2022},
+%  pages = {1--10}
+%}
+`;
+
+export async function ensureBibliography(): Promise<string> {
+  const content = await readBibliography();
+  if (content) return content;
+  const dir = await getWorkspaceDir();
+  await invoke('write_text_file', { path: `${dir}/references.bib`, content: BIB_TEMPLATE });
+  return BIB_TEMPLATE;
+}
+
+export async function writeBibliography(content: string): Promise<void> {
+  const dir = await getWorkspaceDir();
+  await invoke('write_text_file', { path: `${dir}/references.bib`, content });
+}

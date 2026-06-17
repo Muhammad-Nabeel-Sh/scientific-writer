@@ -1,6 +1,6 @@
 <script lang="ts">
   import { hierarchy, activeNoteId, noteContent, bibEntries } from "$lib/stores";
-  import { initWorkspace, readNote, readBibliography } from "$lib/fs";
+  import { initWorkspace, readNote, ensureBibliography } from "$lib/fs";
   import { parseBibTeX } from "$lib/bibliography";
   import HierarchyTree from "./components/HierarchyTree.svelte";
   import Outline from "./components/Outline.svelte";
@@ -25,14 +25,19 @@
     setProportions();
     const data = await initWorkspace();
     $hierarchy = data;
-    const bibContent = await readBibliography();
-    if (bibContent) {
-      $bibEntries = parseBibTeX(bibContent);
-    }
+    const bibContent = await ensureBibliography();
+    $bibEntries = parseBibTeX(bibContent);
   }
 
-  $: if ($activeNoteId) {
+  $: if ($activeNoteId && $activeNoteId !== '__references__') {
     readNote($activeNoteId).then((c) => ($noteContent = c));
+  }
+
+  function openReferences() {
+    $activeNoteId = '__references__';
+    ensureBibliography().then((c) => {
+      $noteContent = c;
+    });
   }
 
   function startDrag(e: MouseEvent, target: string) {
@@ -66,6 +71,22 @@
 <div class="app-layout">
   <aside class="panel left" style="width: {leftWidth}px;">
     <HierarchyTree />
+    <div class="refs-row">
+      <button
+        class="refs-btn"
+        class:active={$activeNoteId === '__references__'}
+        on:click={openReferences}
+      >
+        <svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+          <line x1="16" y1="13" x2="8" y2="13" />
+          <line x1="16" y1="17" x2="8" y2="17" />
+          <polyline points="10 9 9 9 8 9" />
+        </svg>
+        <span>المراجع</span>
+      </button>
+    </div>
     <Outline />
     <Stats />
   </aside>

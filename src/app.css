@@ -47,6 +47,18 @@ html, body { height: 100%; overflow: hidden; direction: rtl; background: var(--b
 }
 .handle:hover, .handle:active { background: var(--accent); }
 
+/* References button */
+.refs-row { padding: 8px 0; border-top: 1px solid var(--border); margin-top: 8px; }
+.refs-btn {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  background: none; border: none; color: var(--fg-muted); cursor: pointer;
+  padding: 8px 10px; border-radius: 6px; font-size: 0.9rem; font-family: inherit;
+  transition: background 0.15s, color 0.15s; text-align: start;
+}
+.refs-btn:hover { background: var(--bg-hover); color: var(--fg); }
+.refs-btn.active { background: var(--accent); color: #fff; }
+.refs-btn svg { width: 18px; height: 18px; flex-shrink: 0; }
+
 /* Hierarchy Tree */
 .tree-container { display: flex; flex-direction: column; gap: 2px; }
 .tree-item {
@@ -165,6 +177,40 @@ html, body { height: 100%; overflow: hidden; direction: rtl; background: var(--b
     padding-left: 10%;
     box-sizing: border-box;
   }
+}
+
+/* Equation Figures */
+.preview figure.equation-figure {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: 1.5rem 0;
+  position: relative;
+}
+.preview figure.equation-figure > p.katex-block {
+  flex: 1;
+  margin: 0;
+  min-width: 0;
+}
+.preview figure.equation-figure > figcaption.eq-number {
+  flex-shrink: 0;
+  font-size: 0.9rem;
+  color: #555;
+  font-style: italic;
+  min-width: 3em;
+  text-align: center;
+}
+.preview .eq-ref {
+  color: #1a73e8;
+  text-decoration: none;
+  cursor: pointer;
+}
+.preview .eq-ref:hover {
+  text-decoration: underline;
+}
+.preview .eq-ref-unresolved {
+  color: #c00;
+  font-style: italic;
 }
 
 /* Bibliography */
