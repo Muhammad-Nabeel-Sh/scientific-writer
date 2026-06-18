@@ -67,7 +67,14 @@ scientific-writer/
 │       ├── kashida.ts        # Kashida (tatweel) justification engine
 │       ├── blocks.ts         # Academic block plugin (::: theorem, proof, etc.)
 │       ├── footnotes.ts      # Footnote rendering & endnote mode toggle
-│       └── search.ts         # Full-text search index builder & keyword/vector search
+│       ├── search.ts         # Full-text search index builder & keyword/vector search
+│       │
+│       └── publishing/       # Publishing abstraction layer
+│           ├── index.ts      # Barrel exports
+│           ├── ast.ts        # AST node types (BlockNode, InlineNode, DocumentModel)
+│           ├── exporter.ts   # Exporter interface + pluggable registry
+│           ├── document.ts   # markdown→AST parser (DocumentModel)
+│           └── manuscript.ts # Manuscript compiler — merges chapters → unified AST
 │
 ├── src-tauri/                # Rust backend
 │   ├── Cargo.toml
@@ -364,6 +371,216 @@ Output HTML (passed to Preview.svelte for further wiki link rendering)
 - Splits text by regex preserving protected segments (code, math, URLs, citations, refs, labels, footnotes)
 - Only replaces digits in non-protected segments
 - Only activates on lines containing Arabic Unicode characters
+
+---
+
+## Publishing Architecture
+
+The publishing layer decouples document content from output formats. All exporters consume a shared AST (`DocumentModel`) rather than raw markdown.
+
+### Architecture overview
+
+```
+Markdown text
+    │
+    ▼
+DocumentModel (AST)  ←─ parseDocument() / createDocument()
+    │                     src/lib/publishing/document.ts
+    │
+    ├──► HtmlExporter     (future)
+    ├──► PdfExporter      (future)
+    ├──► DocxExporter     (future)
+    ├──► LatexExporter    (future)
+    └──► TypstExporter    (future)
+         │
+         ▼
+    ExportResult { content, extension, mime }
+```
+
+### AST node hierarchy (`src/lib/publishing/ast.ts`)
+
+The AST is a tree of discriminated union nodes with a `type` discriminant.
+
+**Inline nodes** (appear inside paragraphs, headings, list items, etc.):
+
+| Type | Fields | Purpose |
+|------|--------|---------|
+| `text` | `value: string` | Plain text |
+| `strong` | `children: InlineNode[]` | Bold |
+| `emphasis` | `children: InlineNode[]` | Italic |
+| `strikethrough` | `children: InlineNode[]` | ~~Strikethrough~~ |
+| `inlineCode` | `value: string` | `code` |
+| `inlineMath` | `value: string` | `$...$` LaTeX |
+| `link` | `url, title?, children` | `[text](url)` |
+| `inlineImage` | `src, alt, title?` | `![alt](src)` |
+| `footnoteRef` | `id: string` | `[^N]` |
+| `citation` | `key: string` | `[@key]` |
+| `equationRef` | `ref: string` | `[ref:eq:...]` |
+| `blockRef` | `ref: string` | `[ref:type:...]` |
+| `wikiLink` | `target, display?` | `[[Note]]` |
+| `lineBreak` | — | Hard line break |
+
+**Block nodes** (top-level document structure):
+
+| Type | Fields | Purpose |
+|------|--------|---------|
+| `heading` | `level, children, id?` | `# title` |
+| `paragraph` | `children: InlineNode[]` | Text paragraph |
+| `thematicBreak` | — | `---` / `***` |
+| `codeBlock` | `language?, value` | Fenced code |
+| `blockquote` | `children: BlockNode[]` | `>` quotation |
+| `list` | `ordered, start?, tight, items` | Bullet/numbered list |
+| `listItem` | `checked?, children` | Single list entry |
+| `imageFigure` | `src, alt, title?, caption?, id?, number?` | Standalone `![]()` image |
+| `table` | `header, body, caption?, id?, number?` | Pipe table |
+| `mathBlock` | `value, label?, id?, number?` | `$$...$$` display math |
+| `footnoteDefinition` | `id, children` | `[^N]: text` |
+| `poetry` | `verses: PoetryVerse[]` | Poetry fence (`` ```poetry ``) |
+| `academicBlock` | `blockType, label?, id?, number?, children` | `::: theorem` etc. |
+| `matn` | `children` | Classical book core text |
+| `sharh` | `children` | Classical book commentary |
+| `hashiyah` | `children` | Classical book marginal gloss |
+| `htmlBlock` | `value: string` | Raw HTML pass-through |
+| `figureGroup` | `kind, children, caption?, id?, number?` | Wrapper for captioned figure/table/equation |
+
+### DocumentModel interface
+
+```typescript
+interface DocumentModel {
+  meta: DocumentMeta;       // title, author, date, lang, direction
+  blocks: BlockNode[];      // top-level block nodes
+  bibEntries: BibEntry[];   // parsed bibliography entries
+  errors: string[];         // parse warnings/errors
+}
+```
+
+### Parser (`src/lib/publishing/document.ts`)
+
+`parseDocument(markdown, bibEntries?)` converts raw markdown text into a `DocumentModel` using a line-by-line state machine.
+
+- Recognises: headings, paragraphs, code fences, poetry fences, math blocks (`$$`), blockquotes, ordered/unordered lists, pipe tables, image figures, thematic breaks, inline formatting, wiki links, citations, equation/block refs, footnotes, academic block fences (`:::`), classical book containers (`:::matn`, `:::sharh`, `:::hashiyah`, `:::page`)
+- Handles nesting through a `containerStack` (blockquotes, lists, academic blocks, classical containers)
+- Inline content parsed via `parseInline(text)` using ordered regex rules
+- Returns `errors[]` for recoverable parse issues
+
+### Exporter interface (`src/lib/publishing/exporter.ts`)
+
+```typescript
+interface Exporter {
+  readonly name: string;           // 'html', 'latex', 'typst', etc.
+  readonly label: string;          // Arabic display name ('HTML', 'لا텍')
+  readonly extensions: string[];   // ['html'], ['pdf'], ['tex']
+  export(model: DocumentModel): ExportResult | Promise<ExportResult>;
+}
+
+interface ExportResult {
+  content: string;                 // exported file content
+  extension: string;               // file extension without dot
+  mime: string;                    // MIME type
+}
+```
+
+**Contract**: `export()` receives an already-parsed `DocumentModel`. The exporter must NOT read raw markdown, call the markdown-it renderer, or access any rendering pipeline. It works purely from the AST.
+
+### Exporter registry
+
+| Function | Purpose |
+|----------|---------|
+| `registerExporter(exporter)` | Register a new exporter (replaces existing by name) |
+| `unregisterExporter(name)` | Remove an exporter |
+| `getExporter(name)` | Look up by name |
+| `listExporters()` | List all registered exporters |
+| `hasExporter(name)` | Check if registered |
+| `exportDocument(model, name)` | Convenience: export using a named exporter |
+
+Registration is open-ended — any code can call `registerExporter()` with a custom `Exporter` object. This makes future exporters pluggable without modifying the core.
+
+### Pipeline integration (future)
+
+The existing `renderMarkdown()` → HTML path continues unchanged. The publishing layer sits alongside it:
+
+```
+             ┌─► renderMarkdown() → HTML (current)
+             │
+Markdown ────┤
+             │
+             └─► createDocument() → DocumentModel ──► [registered exporters]
+```
+
+A future UI would offer an "Export" menu listing all registered exporters (`listExporters()`), allowing the user to pick a format and trigger `exportDocument(model, name)`.
+
+### Manuscript Compiler (`src/lib/publishing/manuscript.ts`)
+
+The manuscript compiler merges multiple notes (chapters) into a unified `DocumentModel` AST with generated front matter and back matter.
+
+#### Compilation Pipeline
+
+```
+Manuscript definition
+  { title, author, chapters: [{ noteId, title, type }, ...] }
+    │
+    ▼
+compileManuscript(manuscript, bibEntries?)
+    │
+    ├─► For each chapter: readNote(noteId) → parseDocument(markdown)
+    │     └─► Extract figures, tables, equations, headings, citations
+    │
+    ├─► Global numbering
+    │     └─► Sequential fig/tbl/eq numbers across all chapters
+    │
+    ├─► Generate front matter
+    │     ├─► Title page (AST blocks)
+    │     ├─► Table of Contents (grouped by chapter, max 3 levels)
+    │     ├─► List of Figures
+    │     └─► List of Tables
+    │
+    ├─► Merge chapter blocks
+    │     └─► Each chapter preceded by thematic break + chapter heading
+    │
+    ├─► Append bibliography
+    │     └─► Collect all [@key] citations, format from bibEntries
+    │
+    └─► Return CompilationResult
+```
+
+#### Key Types
+
+| Type | Fields | Purpose |
+|------|--------|---------|
+| `Manuscript` | `id, title, author?, date?, lang?, direction?, chapters[]` | Book-level metadata and chapter list |
+| `ManuscriptChapter` | `id, noteId, title, type, number?` | A single chapter referencing a note by ID |
+| `TocEntry` | `level, text, chapterId?, id?` | Heading extracted for TOC |
+| `ListEntry` | `id, number, caption, chapterId?, chapterTitle?` | Figure/table/equation listing |
+| `CompilationResult` | `manuscript, document, toc, figureList, tableList, equationList, citations` | Full compilation output |
+
+`ManuscriptChapter.type` can be `'preface' | 'chapter' | 'appendix' | 'bibliography'`. Bibliography chapters are appended after the auto-generated bibliography section.
+
+#### CompilationResult.document
+
+The unified `DocumentModel` contains blocks in this order:
+
+```
+1. Title page (H1 title + author + date + ---)
+2. Table of Contents (H1 "المحتويات" + heading entries)
+3. ---
+4. List of Figures (H1 "قائمة الأشكال" + entries)
+5. ---
+6. List of Tables (H1 "قائمة الجداول" + entries)
+7. ---
+8. [Chapter 1 blocks]  (with H1 if no H1 in source)
+9. ---
+10. [Chapter 2 blocks]
+11. ...
+12. ---
+13. Bibliography (H1 "المراجع" / "Bibliography" + formatted entries)
+14. [Explicit bibliography chapter blocks, if any]
+```
+
+#### Front matter localization
+
+All headings and labels respect the manuscript's `direction` / `lang` setting:
+- `lang === 'ar'` or `direction === 'rtl'` → Arabic labels (المحتويات، قائمة الأشكال، قائمة الجداول، المراجع، الفصل)
+- Otherwise → English labels (Table of Contents, List of Figures, List of Tables, Bibliography, Chapter)
 
 ---
 
