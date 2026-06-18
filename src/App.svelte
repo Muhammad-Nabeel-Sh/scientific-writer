@@ -1,9 +1,11 @@
 <script lang="ts">
-  import { hierarchy, activeNoteId, noteContent, bibEntries } from "$lib/stores";
+  import { hierarchy, activeNoteId, noteContent, bibEntries, backlinksIndex } from "$lib/stores";
   import { initWorkspace, readNote, ensureBibliography } from "$lib/fs";
   import { parseBibTeX } from "$lib/bibliography";
+  import { buildBacklinksIndex, updateBacklinksForNote } from "$lib/backlinks";
   import HierarchyTree from "./components/HierarchyTree.svelte";
   import Outline from "./components/Outline.svelte";
+  import BacklinksPanel from "./components/BacklinksPanel.svelte";
   import Stats from "./components/Stats.svelte";
   import Editor from "./components/Editor.svelte";
   import Preview from "./components/Preview.svelte";
@@ -27,10 +29,18 @@
     $hierarchy = data;
     const bibContent = await ensureBibliography();
     $bibEntries = parseBibTeX(bibContent);
+    $backlinksIndex = await buildBacklinksIndex(data);
   }
 
   $: if ($activeNoteId && $activeNoteId !== '__references__') {
     readNote($activeNoteId).then((c) => ($noteContent = c));
+  }
+
+  let prevContent = '';
+  $: if ($noteContent !== prevContent && $activeNoteId && $activeNoteId !== '__references__') {
+    prevContent = $noteContent;
+    updateBacklinksForNote($backlinksIndex, $activeNoteId, $noteContent, $hierarchy);
+    $backlinksIndex = $backlinksIndex; // trigger reactivity
   }
 
   function openReferences() {
@@ -88,6 +98,7 @@
       </button>
     </div>
     <Outline />
+    <BacklinksPanel />
     <Stats />
   </aside>
   <!-- svelte-ignore a11y_no_static_element_interactions -->

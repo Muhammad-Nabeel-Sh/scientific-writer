@@ -36,25 +36,38 @@ scientific-writer/
 │   │
 │   ├── components/
 │   │   ├── Editor.svelte     # Textarea editor + toolbar + bottom bar + dialogs
-│   │   ├── Preview.svelte    # Renders markdown→HTML with asset resolution
+│   │   ├── Preview.svelte    # Renders markdown→HTML + wiki link click navigation
 │   │   ├── HierarchyTree.svelte  # Note tree with add/rename/delete/drag
 │   │   ├── TreeItem.svelte   # Recursive tree node component
 │   │   ├── Outline.svelte    # Collapsible heading outline in sidebar
+│   │   ├── BacklinksPanel.svelte  # Collapsible incoming wiki links panel
 │   │   ├── Stats.svelte      # Collapsible statistics panel in sidebar
 │   │   ├── CitationDialog.svelte # Citation picker — search bib entries, insert [@key]
 │   │   ├── QuranDialog.svelte    # Quran search & insert dialog
-│   │   └── HadithDialog.svelte   # Hadith search & insert dialog
+│   │   ├── HadithDialog.svelte   # Hadith search & insert dialog
+│   │   ├── EquationDialog.svelte # LaTeX equation editor & insert
+│   │   ├── EnvironmentDialog.svelte # Academic block environment inserter
+│   │   ├── KatexGallery.svelte   # KaTeX symbol reference gallery
+│   │   ├── NewProjectDialog.svelte  # New project/template creator
+│   │   └── TypographySettings.svelte # Font & ligature settings panel
 │   │
 │   └── lib/
 │       ├── stores.ts         # Svelte writable/derived stores (state)
 │       ├── fs.ts             # Tauri IPC wrappers for file operations
 │       ├── markdown.ts       # Markdown pipeline: parse + render
+│       ├── markdown-classical.ts # Classical Arabic book layout plugin (interlinear gloss)
 │       ├── bibliography.ts   # BibTeX parser, citation formatting, bibliography generator
+│       ├── citation-arabic.ts # Arabic CSL strings, manuscript & Ṭabaqāt formatters
+│       ├── backlinks.ts      # Wiki link extraction, backlinks index builder & renderer
 │       ├── stats.ts          # NoteStats interface + computeStats
 │       ├── utils.ts          # createId(), debounce()
 │       ├── hadith.ts         # Hadith data loading, normalization, fuzzy search
 │       ├── quran.ts          # Quran data search, range selection, formatting
-│       └── quran.json        # Quranic verses (embedded data)
+│       ├── quran.json        # Quranic verses (embedded data)
+│       ├── kashida.ts        # Kashida (tatweel) justification engine
+│       ├── blocks.ts         # Academic block plugin (::: theorem, proof, etc.)
+│       ├── footnotes.ts      # Footnote rendering & endnote mode toggle
+│       └── search.ts         # Full-text search index builder & keyword/vector search
 │
 ├── src-tauri/                # Rust backend
 │   ├── Cargo.toml
@@ -86,19 +99,23 @@ scientific-writer/
         ├── [left panel] HierarchyTree
         │     └── TreeItem (recursive)
         ├── [left panel] Outline
+        ├── [left panel] BacklinksPanel
         ├── [left panel] Stats
         ├── [center] Editor
-│     └── CitationDialog   (conditional overlay)
-│     └── QuranDialog      (conditional overlay)
-│     └── HadithDialog     (conditional overlay)
-│     └── table dialog     (inline conditional)
+        │     ├── CitationDialog   (conditional overlay)
+        │     ├── QuranDialog      (conditional overlay)
+        │     ├── HadithDialog     (conditional overlay)
+        │     ├── EquationDialog   (conditional overlay)
+        │     ├── EnvironmentDialog (conditional overlay)
+        │     ├── wiki link dialog (inline conditional)
+        │     └── table dialog     (inline conditional)
         └── [right panel] Preview
 ```
 
 ### Panel layout (App.svelte)
 
 - Three-column resizable layout: `leftWidth` | handle | center (flex: 1) | handle | `rightWidth`
-- Left panel: 20% default → HierarchyTree + Outline + Stats stacked vertically
+- Left panel: 20% default → HierarchyTree + Outline + BacklinksPanel + Stats stacked vertically
 - Center: Editor (textarea + toolbar + bottom bar)
 - Right panel: 40% default → Preview (rendered markdown)
 - Drag handles between panels with `mousedown`/`mousemove`/`mouseup` listeners
@@ -119,10 +136,17 @@ All state lives in Svelte stores (`src/lib/stores.ts`):
 | `bibEntries`       | `writable<BibEntry[]>` | Parsed BibTeX entries from references.bib |
 | `citedKeys`        | `writable<string[]>`  | Citation keys used in current note       |
 | `missingCitationKeys` | `writable<string[]>` | Keys cited but missing from references.bib |
+| `backlinksIndex`   | `writable<Map<string, string[]>>` | targetId → sourceIds reverse index |
+| `currentBacklinks` | `derived`         | Resolved `{id, name}[]` for active note     |
 | `editorRef`        | `writable`        | HTMLTextAreaElement reference                |
 | `previewRef`       | `writable`        | Preview div HTMLElement reference            |
 | `activeHeadingId`  | `writable<string\|null>` | Currently scrolled heading ID         |
 | `outlineItems`     | `derived`         | Parsed heading list from noteContent         |
+| `endnoteMode`      | `writable<boolean>` | Toggle footnotes→endnotes conversion       |
+| `digitStyle`       | `writable<DigitStyle>` | Arabic digit conversion style ('auto'\|'eastern'\|'western') |
+| `ligatureSettings` | `writable<LigatureSettings>` | OpenType font feature toggles      |
+| `fontSettings`     | `writable<FontSettings>` | Font family, weight, optical size, width |
+| `kashidaConfig`    | `writable<KashidaConfig>` | Kashida justification settings        |
 
 ### Data flow
 
@@ -133,7 +157,72 @@ All state lives in Svelte stores (`src/lib/stores.ts`):
 5. Editor scroll → `onEditorScroll` → `activeHeadingId` updated (Outline highlights + Preview syncs)
 6. On app init: `readBibliography()` → `parseBibTeX()` → `bibEntries` store populated
 7. Preview renders `renderMarkdown(content, bibEntries)` → `citedKeys` / `missingCitationKeys` stores updated
-8. Ctrl+S triggers immediate save
+8. On app init: `buildBacklinksIndex(hierarchy)` → `backlinksIndex` store populated
+9. On noteContent change: `updateBacklinksForNote()` → `backlinksIndex` updated incrementally
+10. Ctrl+S triggers immediate save
+
+---
+
+## Backlinks System
+
+### Architecture (`src/lib/backlinks.ts`)
+
+Wiki links use `[[Note Name]]` syntax, optionally with display text: `[[Note Name|Display Text]]`.
+
+| Function | Purpose |
+|----------|---------|
+| `extractWikiLinks(content)` | Parses `[[...]]` patterns, returns target name strings |
+| `buildNameToIdMap(hierarchy)` | Maps `TreeNode.name` (sans `.md`) → `node.id` |
+| `resolveWikiLink(targetName, hierarchy)` | Resolves a name to a note ID (or null) |
+| `buildBacklinksIndex(hierarchy)` | Scans all notes, builds `Map<targetId, sourceIds[]>` (async) |
+| `updateBacklinksForNote(index, sourceId, content, hierarchy)` | Incremental update when one note changes |
+| `renderWikiLinks(html, hierarchy)` | Converts `[[...]]` → `<a data-note-id="...">` in rendered HTML |
+
+### Index building
+
+- **Full scan**: `buildBacklinksIndex()` traverses the hierarchy tree, reads every note via `readNote()`, extracts wiki links, builds the reverse map. Called on app init.
+- **Incremental update**: When `noteContent` changes (user typing), `updateBacklinksForNote()` removes the current note from all source lists, re-scans its content, and re-inserts links. No full re-scan on every keystroke.
+- Name resolution matches against `TreeNode.name` with `.md` stripped. First match wins for duplicate names.
+
+### Data flow
+
+```
+hierarchy store
+    │
+    ▼
+buildBacklinksIndex(hierarchy)  ← on init
+    │
+    ▼
+backlinksIndex store  (Map<targetId, sourceIds[]>)
+    │                       ▲
+    │                       │ updateBacklinksForNote()  ← on noteContent change
+    ▼                       │
+currentBacklinks (derived) ─┘  ← resolved to {id, name}[]
+    │
+    ▼
+BacklinksPanel.svelte  ← renders clickable list
+```
+
+### UI (`BacklinksPanel.svelte`)
+
+- Collapsible section below Outline in the left sidebar
+- Header shows "الروابط الواردة" with count badge
+- Each item is a clickable button showing the source note's display name
+- Click sets `activeNoteId` → navigates to the source note
+- Empty state: "لا توجد روابط واردة"
+- Styled consistently with Outline and Stats panels
+
+### Preview integration (`Preview.svelte`)
+
+- After markdown→HTML rendering, `renderWikiLinks()` converts `[[Name]]` to `<a class="wiki-link-resolved" data-note-id="ID">` (or `<span class="wiki-link-missing">` for unresolvable targets)
+- Click handler on preview div captures `click` events, checks for `a.wiki-link-resolved` via `closest()`, prevents default navigation, sets `$activeNoteId`
+- Keyboard: `Enter` on focused wiki link (via `on:keydown` → `role="none"` on preview div to satisfy a11y)
+
+### Editor insertion
+
+- Toolbar button (chain link with `+` indicator) opens a searchable dialog
+- Dialog lists all notes from hierarchy, filtered by text input
+- Selecting a note inserts `[[Note Name]]` at cursor
 
 ---
 
@@ -167,7 +256,7 @@ Defined in `src-tauri/src/lib.rs`, invoked via `@tauri-apps/api/core` `invoke()`
 
 All logic in `src/lib/markdown.ts`.
 
-### renderMarkdown(text, bibEntries?) → HTML string
+### renderMarkdown(text, bibEntries?, digitStyle?) → HTML string
 
 ```
 Input text
@@ -175,7 +264,7 @@ Input text
    ▼
 1. Pre-process: Arabic digit conversion
    │  - Skip code fences, inline code, math ($..$, $$..$$), image/link URLs,
-   │    citation patterns ([@key])
+   │    citation patterns ([@key]), [ref:…] refs, {#eq:…} labels, [^N] footnote refs
    │  - Replace ASCII digits (0-9) with Arabic-Indic (٠-٩) on lines with Arabic text
    │  - Insert blank lines after non-table, non-fence lines for hard paragraph breaks
    │
@@ -187,65 +276,92 @@ Input text
    │  - Map captions to table index
    │
    ▼
-3. Citation replacement (if bibEntries provided)
+3. Equation parsing
+   │  - Extract $$...$$ blocks outside code fences
+   │  - Strip {#eq:label} suffix, store in equationInfos[]
+   │
+   ▼
+4. Citation replacement (if bibEntries provided)
    │  - Replace [@key] with formatted in-text citation
    │  - Multiple: [@key1; @key2] → (Author1, Year; Author2, Year)
+   │  - Prefixes: [@ms:key] forces manuscript format, [@tab:key] forces Ṭabaqāt
    │  - Missing keys → (?key?) placeholder
    │  - Track usedKeys / missingKeys in module-level state
    │
    ▼
-4. markdown-it render (with plugins)
+5. Interlinear gloss pre-processor
+   │  - renderInterlinearGloss() for classical Arabic book layout
+   │
+   ▼
+6. markdown-it render (with plugins)
    │  - katex plugin for $$ math
    │  - highlight.js for code block syntax highlighting
    │  - lang="poetry" → custom renderPoem() for Arabic poetry layout
    │  - Custom image render rule: every ![alt](src) becomes <figure class="figure">
    │    with auto-numbered caption Figure/الشكل N[: alt text]
+   │  - academicBlocksPlugin for ::: theorem, proof, etc.
+   │  - footnotePlugin for [^N] footnotes
+   │  - classicalBookPlugin for classical Arabic book formatting
    │
    ▼
-5. Post-process: dir="auto" injection
+7. Post-process: dir="auto" injection
    │  - Inject dir="auto" on p, h1-h6, blockquote, pre, th, td, li
    │  - ul/ol dir from content scan (Arabic → rtl)
    │  - table dir from content scan (Arabic → rtl)
    │
    ▼
-6. Inject table captions
+8. Inject table captions
    │  - Wrap every <table> in <figure class="table-figure">
    │  - Add <figcaption> Table/جدول N[: caption text] above table
    │
    ▼
-7. Append bibliography (if citations used)
-   │  - Generate <section class="bibliography"> with numbered entries
-   │  - Heading: "المراجع" (Arabic refs) or "References" (English refs)
-   │  - List missing citations in warning box
+9. Equation figure wrapping
+   │  - Wrap displayed equations in <figure class="equation-figure">
+   │  - Add numbered <figcaption> (N)
    │
    ▼
-Output HTML (passed to Preview.svelte)
+10. Equation reference resolution
+    │  - Replace [ref:eq:label] / [ref:eq:N] with <a href="#eq-…">(N)</a>
+    │
+    ▼
+11. Academic block reference resolution
+    │  - resolveBlockRefs() for cross-refs within theorem environments
+    │
+    ▼
+12. Append bibliography (if citations used)
+    │  - Generate <section class="bibliography"> with numbered entries
+    │  - Heading: "المراجع" (Arabic refs) or "References" (English refs)
+    │  - List missing citations in warning box
+    │
+    ▼
+Output HTML (passed to Preview.svelte for further wiki link rendering)
 ```
 
-### parseFigures(markdown) → FigureInfo[]
-- Scans markdown source for `![alt](src)` patterns
-- Returns array of `{ id, number, src, caption }`
+### Auxiliary parsers
 
-### parseTables(markdown) → TableInfo[]
-- Scans markdown source for pipe-table lines and `Table:`/`جدول:` caption syntax
-- Returns array of `{ id, number, caption }`
-
-### parseOutline(markdown) → OutlineItem[]
-- Splits text by lines, skips code fences
-- Matches `#{1,6} heading_text` lines
-- Returns `{ id, level, text, lineIndex, charOffset }`
+| Function | Returns | Purpose |
+|----------|---------|---------|
+| `parseEquationsFromText(text)` | `EquationInfo[]` | Extract equation metadata for ref numbering |
+| `parseFigures(markdown)` | `FigureInfo[]` | Scans `![alt](src)` patterns |
+| `parseTables(markdown)` | `TableInfo[]` | Scans pipe tables + caption syntax |
+| `parseOutline(markdown)` | `OutlineItem[]` | Heading extraction for Outline panel |
 
 ### Figure numbering
 - `figCounter` resets each `renderMarkdown()` call
-- IDs generated from filename base: `fig-{filename}` with dedup suffix
+- IDs generated from filename base: `fig-{filename}` with dedup suffix `-2`, `-3`, ...
 - Figure count = image count (every image is a figure)
 
 ### Table numbering
 - Sequential `tbl-{N}` based on table appearance order
 - Caption source: `Table: text` or `جدول: نص` on line preceding the table
 
+### Equation numbering
+- Sequential `(N)` displayed in right-aligned figcaption
+- Labels via `{#eq:label}` suffix on `$$...$$` block → referenceable as `[ref:eq:label]`
+- Unlabeled equations numbered automatically as `eq-{N}`
+
 ### Arabic digit conversion (`convertArabicDigits`)
-- Splits text by regex preserving inline code, math, image/link URLs, citation patterns (`[@key]`)
+- Splits text by regex preserving protected segments (code, math, URLs, citations, refs, labels, footnotes)
 - Only replaces digits in non-protected segments
 - Only activates on lines containing Arabic Unicode characters
 
@@ -257,20 +373,30 @@ Output HTML (passed to Preview.svelte)
 
 ```
 noteContent store ─┐
-bibEntries  store ─┤
-                  ▼
-renderMarkdown(content, entries) ← markdown.ts
+bibEntries store ──┤
+hierarchy store ───┤
+                   ▼
+renderMarkdown(content, entries, digitStyle) ← markdown.ts
    │                               (citations replaced, bibliography appended)
    ▼
-resolveAssets(html)            ← replace src="assets/..." with convertFileSrc(workspaceDir + '/assets/...')
-   │                              (converts to Tauri asset protocol URL)
+renderWikiLinks(html, $hierarchy)  ← backlinks.ts
+   │                               (convert [[Name]] → <a data-note-id="...">)
    ▼
-{@html html}                   ← innerHTML in <div class="preview" dir="auto">
+resolveAssets(html)              ← replace src="assets/..." with convertFileSrc()
+   │                              (Tauri asset protocol URL)
+   ▼
+{@html html}                     ← innerHTML with on:click wiki link handler
    │
    ▼
-getLastCitationResult()        ← read module-level usedKeys/missingKeys
+getLastCitationResult()          ← read module-level usedKeys/missingKeys
    │                              → update citedKeys / missingCitationKeys stores
 ```
+
+### Click handling
+- Wiki links rendered as `<a class="wiki-link-resolved" data-note-id="ID">`
+- Click handler uses `closest('a.wiki-link-resolved')` to find the link
+- Sets `$activeNoteId` → navigates to target note
+- Broken links render as `<span class="wiki-link-missing">` (no click action)
 
 ### Preview container styles (app.css)
 - `.preview { direction: ltr; }` — base direction of preview area
@@ -316,7 +442,7 @@ workspace/
 ### Initialization flow
 1. `initWorkspace()` calls `get_workspace_dir()` (creates dir on first call)
 2. Tries to read `hierarchy.json`
-3. If not found: creates default hierarchy (2 folders, 3 notes with sample content)
+3. If not found: creates default hierarchy (2 folders, 5 notes with sample content including wiki link examples)
 4. Writes default files via `write_text_file`
 5. Returns `TreeNode[]` → set into `hierarchy` store
 6. `readBibliography()` reads `references.bib` from workspace (returns empty string if missing)
@@ -337,7 +463,7 @@ workspace/
 
 ### Architecture
 
-All logic in `src/lib/bibliography.ts`. Formatters are isolated functions, designed to be swappable with a CSL-based implementation in the future.
+Core logic in `src/lib/bibliography.ts`. Arabic-specific formatters in `src/lib/citation-arabic.ts`. Formatters are isolated functions designed to be swappable with a CSL-based implementation in the future.
 
 ### BibTeX Parser
 
@@ -347,6 +473,17 @@ All logic in `src/lib/bibliography.ts`. Formatters are isolated functions, desig
 - Skips `@string`, `@preamble`, `@comment` directives
 - Returns `BibEntry[]` with `{ key, type, fields }` structure
 
+### Entry type support
+
+| Type | Fields | Formatter |
+|------|--------|-----------|
+| `@article` | author, title, year, journal, volume, number, pages | Standard |
+| `@book` | author, title, year, publisher, edition | Standard |
+| `@inproceedings`/`@incollection` | author, title, year, booktitle, publisher, pages | Standard |
+| `@phdthesis`/`@mastersthesis` | author, title, year, school | Standard |
+| `@manuscript` | author, title, year, library/siglum, shelfmark, folio, side | Arabic (citation-arabic.ts) |
+| `@tabaqat` | author, title, tabaqa/generation, death/year, pages/page | Arabic (citation-arabic.ts) |
+
 ### Citation Syntax
 
 | Input                                    | Output                                       |
@@ -354,6 +491,8 @@ All logic in `src/lib/bibliography.ts`. Formatters are isolated functions, desig
 | `[@smith2024]`                           | `(Smith, 2024)`                              |
 | `[@smith2024; @jones2023]`               | `(Smith, 2024; Jones, 2023)`                 |
 | `[@arabic2024]` (Arabic entry)           | `(محمد، ٢٠٢٤)`                               |
+| `[@ms:ms123]`                            | `(دار الكتب ١٢٣، ورقة ٥أ، ١٨٥٠)`             |
+| `[@tab:tab123]`                          | `(الطبقة ٣، ت ٢٣١، ص ٤٥)`                     |
 | `[@unknown]` (missing key)              | `(?unknown?)`                                |
 
 ### Author formatting rules
@@ -363,41 +502,39 @@ All logic in `src/lib/bibliography.ts`. Formatters are isolated functions, desig
 - 3+ authors → `Last1 et al.` (Arabic: `Last1 وآخرون`)
 - Language detection: scans `author` + `title` fields for Arabic Unicode characters
 
+### Arabic CSL strings (`citation-arabic.ts`)
+
+| Key | Arabic | Usage |
+|-----|--------|-------|
+| `page`/`pages` | ص | Page number prefix |
+| `volume` | جـ | Volume prefix |
+| `number` | ع | Issue number prefix |
+| `edition` | ط | Edition prefix |
+| `publisher` | الناشر | Publisher label |
+| `journal` | مجلة | Journal label |
+| `in` | في | "In" for proceedings |
+
+### Manuscript formatting
+- Signature: `{library siglum} {shelfmark}، ورقة {folio}{side}`
+- Example: `دار الكتب ١٢٣، ورقة ٥أ`
+
+### Ṭabaqāt formatting
+- Pattern: `{author}، الطبقة {N}، ت {death}، ص {page}`
+- Example: `محمد بن سعد، الطبقة ٣، ت ٢٣١، ص ٤٥`
+
 ### Bibliography generation
 
 - Appended automatically after rendered content (behind `<hr>`)
 - Heading: `المراجع` if any entry contains Arabic text, otherwise `References`
 - Entries numbered in order of first appearance (`[1]`, `[2]`, ...)
-- Formatting varies by entry type:
-  - `article`: `[1] Author (Year). Title. Journal, Volume(Issue), Pages.`
-  - `book`: `[1] Author (Year). Title. Edition. Publisher.`
-  - `inproceedings`: `[1] Author (Year). Title. In Booktitle. Publisher, Pages.`
-  - `phdthesis`/`mastersthesis`: `[1] Author (Year). Title. PhD thesis. School.`
-  - default: `[1] Author (Year). Title.`
+- Arabic entries use Arabic ordinals and formatting (`مجلة`, `جـ`, `ع`, `ص`, `ط`, `الناشر`, `في`, `رسالة دكتوراه`, `رسالة ماجستير`)
+- Titles wrapped in `«guillemets»` for Arabic entries, standard quotes for English
 
 ### Missing citation detection
 
 - Keys cited via `[@key]` that don't exist in `references.bib` → tracked in `missingCitationKeys` store
 - In-text: shown as `(?key?)` inline
 - Bibliography: warning box with `Missing references` / `المراجع غير الموجودة` listing all missing keys
-
-### Citation picker dialog (`CitationDialog.svelte`)
-
-Opened via the "استشهاد" button in the editor's bottom bar.
-
-- **Search**: Fuse.js fuzzy search across `author`, `title`, `year` fields (threshold 0.4)
-- **Results**: Shows author, year, title, citation key, and entry type per row
-- **Insert**: Click or Enter → inserts `[@key]` at cursor via Editor's `insertAtCursor`
-- **Keyboard**: `↑`/`↓` navigate results, `Enter` selects, `Escape` closes
-- **Empty state**: Shows message if `references.bib` is missing or empty
-- **Architecture**: Reads from `bibEntries` store (populated by `App.svelte` on init). A future Zotero backend would replace the store's data source while the dialog code stays unchanged.
-
-### CSL future support
-
-The formatting pipeline is structured as standalone exported functions (`formatInText`, `formatBibliographyEntry`, `generateBibliographyHtml`, `replaceCitations`). A future CSL backend would:
-1. Replace `formatInText` and `formatBibliographyEntry` with CSL-based formatting
-2. Pass `CitationFormatter` strategy through the pipeline
-3. No changes needed to `BibEntry` interface, parser, or citation regex
 
 ### Data flow
 
@@ -416,6 +553,7 @@ bibEntries store   ← stores.ts
    ▼
 renderMarkdown(content, entries) ← markdown.ts
    │  ├─ replaceCitations() → formatted text + usedKeys + missingKeys
+   │  │    └─ dispatches to citation-arabic.ts for Arabic/manuscript/tabaqat entries
    │  └─ generateBibliographyHtml() → HTML section appended to output
    ▼
 Preview.svelte     ← updates citedKeys / missingCitationKeys stores
@@ -440,6 +578,24 @@ Preview.svelte     ← updates citedKeys / missingCitationKeys stores
 
 ---
 
+## Typography & Justification
+
+### Kashida engine (`src/lib/kashida.ts`)
+
+- Optional tatweel/kashida justification applied after rendering
+- `applyKashida(previewEl, config)` inserts `&#x0640;` characters into Arabic text nodes to reach a target fill ratio
+- Toggle via `kashidaConfig.enabled` store
+- `clearKashida(previewEl)` removes inserted kashidas for re-application
+
+### Font settings
+
+- Custom font family, weight, optical size, width via `fontSettings` store
+- Supports variable-font axes: `wght`, `opsz`, `wdth`/`HEXP`
+- Ligature toggles via `ligatureSettings` store (`rlig`, `liga`, `dlig` OpenType features)
+- Applied as CSS `font-variation-settings` and `font-feature-settings` on the preview div
+
+---
+
 ## History / Undo-Redo (Editor.svelte)
 
 - `history: string[]` — up to 200 editor snapshots
@@ -447,6 +603,22 @@ Preview.svelte     ← updates citedKeys / missingCitationKeys stores
 - `pushHistory()` called before every editor mutation
 - Ctrl+Z/Ctrl+Y wired to undo/redo
 - `ignoreNextInput` flag prevents duplicate history entries on programmatic `setValue()` calls
+
+---
+
+## Keyboard Shortcuts (Editor.svelte)
+
+| Shortcut | Action |
+|----------|--------|
+| Ctrl+Z | Undo |
+| Ctrl+Y | Redo |
+| Ctrl+S | Save |
+| Ctrl+B | Bold |
+| Ctrl+I | Italic |
+| Ctrl+T | Insert table |
+| Ctrl+L | Insert link |
+| Ctrl+Q | Blockquote |
+| Ctrl+1–6 | Heading H1–H6 |
 
 ---
 
@@ -473,3 +645,6 @@ Preview.svelte     ← updates citedKeys / missingCitationKeys stores
 - All UI labels are in Arabic
 - Component styles use scoped `<style>` blocks; global styles in `app.css`
 - Poetry: fenced code block with `poetry` language, verses split by `||`
+- Academic blocks: fenced code block with `::: theorem`, `::: proof`, etc.
+- Wiki links: `[[Note Name]]` syntax, rendered as clickable cross-document links
+- New notes via the editor toolbar or HierarchyTree context menu

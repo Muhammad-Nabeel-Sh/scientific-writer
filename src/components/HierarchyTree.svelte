@@ -4,8 +4,12 @@
   import { createId } from '$lib/utils';
   import { saveHierarchy } from '$lib/fs';
   import TreeItem from './TreeItem.svelte';
+  import NewProjectDialog from './NewProjectDialog.svelte';
+  import SearchDialog from './SearchDialog.svelte';
 
   $: nodes = $hierarchy;
+  let showNewProject = false;
+  let showSearch = false;
 
   function save() {
     saveHierarchy([...$hierarchy]);
@@ -67,6 +71,14 @@
     save();
   }
 
+  function openNewProject() {
+    showNewProject = true;
+  }
+
+  function openSearch() {
+    showSearch = true;
+  }
+
   function moveNode(nodeId: string, targetId: string, position: 'before' | 'after' | 'inside') {
     const findParent = (list: TreeNode[], id: string): { list: TreeNode[]; idx: number } | null => {
       for (let i = 0; i < list.length; i++) {
@@ -104,6 +116,12 @@
     <button class="tree-action-btn" title="مجلد جديد" on:click={addFolder}>
       <svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" /><line x1="12" y1="11" x2="12" y2="17" /><line x1="9" y1="14" x2="15" y2="14" /></svg>
     </button>
+    <button class="tree-action-btn search-btn" title="بحث" on:click={openSearch}>
+      <svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+    </button>
+    <button class="tree-action-btn project-btn" title="مشروع جديد" on:click={openNewProject}>
+      <svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" /><polyline points="20 12 20 22 4 22 4 12" /><polyline points="12 2 12 8 20 8 12 2" /><line x1="8" y1="16" x2="16" y2="16" /></svg>
+    </button>
   </div>
   {#each nodes as node (node.id)}
     <TreeItem {node} {selectNote} {renameNode} {deleteNode} {addNote} {moveNode} />
@@ -111,6 +129,9 @@
     <div class="empty-msg">لا توجد ملاحظات</div>
   {/each}
 </div>
+
+<NewProjectDialog bind:show={showNewProject} />
+<SearchDialog bind:show={showSearch} />
 
 <style>
   .tree-container { display: flex; flex-direction: column; gap: 2px; }
@@ -124,5 +145,7 @@
   }
   .tree-action-btn:hover { background: var(--bg-hover); color: var(--fg); }
   .tree-action-btn svg { width: 18px; height: 18px; }
+  .search-btn { margin-inline-end: auto; }
+  .project-btn { margin-inline-start: auto; }
   .empty-msg { color: var(--fg-muted); font-size: 0.9rem; padding: 1rem; text-align: center; }
 </style>

@@ -6,6 +6,7 @@
     activeHeadingId,
     outlineItems,
     bibEntries,
+    hierarchy,
   } from "$lib/stores";
   import { get } from "svelte/store";
   import { writeNote, writeBibliography, getWorkspaceDir } from "$lib/fs";
@@ -31,10 +32,25 @@
   let showCitationDialog = false;
   let showEquationDialog = false;
   let showEnvironmentDialog = false;
+  let showWikiLinkDialog = false;
+  let wikiLinkSearch = '';
   let tableRows = 3;
   let tableCols = 4;
   let tableLang: "arabic" | "english" = "arabic";
   let tableAlign: "left" | "center" | "right" = "left";
+
+  $: flatNotes = (function collect(nodes: any[]): { id: string; name: string }[] {
+    const result: { id: string; name: string }[] = [];
+    for (const node of nodes) {
+      if (node.type === 'note') result.push({ id: node.id, name: node.name.replace(/\.md$/i, '') });
+      if (node.children) result.push(...collect(node.children));
+    }
+    return result;
+  })($hierarchy);
+
+  $: filteredNotes = wikiLinkSearch
+    ? flatNotes.filter(n => n.name.toLowerCase().includes(wikiLinkSearch.toLowerCase()))
+    : flatNotes;
 
   let history: string[] = [""];
   let historyIndex = 0;
@@ -261,6 +277,12 @@
     ta.selectionStart = ta.selectionEnd = pos;
     ta.focus();
     ta.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  function insertWikiLink(name: string) {
+    showWikiLinkDialog = false;
+    wikiLinkSearch = '';
+    insertAtCursor(`[[${name}]]`);
   }
 
   function insertPoetry() {
@@ -527,6 +549,24 @@
         /></svg
       >
     </button>
+    <button
+      class="tb"
+      title="رابط داخلي"
+      on:click={() => (showWikiLinkDialog = true)}
+    >
+      <svg
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        fill="none"
+        stroke-width="2.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
+        <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
+        <polyline points="12 8 12 12 16 12" />
+      </svg>
+    </button>
     <button class="tb" title="صورة" on:click={insertImage}>
       <svg
         viewBox="0 0 24 24"
@@ -636,6 +676,45 @@
       on:close={() => (showEnvironmentDialog = false)}
       insertBlock={insertEnvironmentBlock}
     />
+  {/if}
+  {#if showWikiLinkDialog}
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="dialog-overlay"
+      on:click={() => { showWikiLinkDialog = false; wikiLinkSearch = ''; }}
+      on:keydown
+      role="presentation"
+    >
+      <!-- svelte-ignore a11y_interactive_supports_focus -->
+      <div class="dialog wiki-link-dialog" on:click|stopPropagation on:keydown role="dialog">
+        <h3>إدراج رابط داخلي</h3>
+        <input
+          type="text"
+          class="wiki-search"
+          placeholder="ابحث عن ملاحظة..."
+          bind:value={wikiLinkSearch}
+          autofocus
+        />
+        <div class="wiki-note-list">
+          {#if filteredNotes.length === 0}
+            <div class="empty-msg">لا توجد ملاحظات</div>
+          {:else}
+            {#each filteredNotes as note (note.id)}
+              <button class="wiki-note-item" on:click={() => insertWikiLink(note.name)}>
+                <svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="link-icon">
+                  <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
+                  <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
+                </svg>
+                <span>{note.name}</span>
+              </button>
+            {/each}
+          {/if}
+        </div>
+        <div class="dialog-actions">
+          <button class="btn-cancel" on:click={() => { showWikiLinkDialog = false; wikiLinkSearch = ''; }}>إلغاء</button>
+        </div>
+      </div>
+    </div>
   {/if}
 
   <textarea
@@ -993,5 +1072,70 @@
   }
   input[type="file"] {
     display: none;
+  }
+  .wiki-link-dialog {
+    max-height: 400px;
+    display: flex;
+    flex-direction: column;
+  }
+  .wiki-search {
+    background: #2a2a2a;
+    border: 1px solid var(--border);
+    color: var(--fg);
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 0.9rem;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .wiki-search:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .wiki-note-list {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: 8px;
+    max-height: 250px;
+  }
+  .wiki-note-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: none;
+    border: none;
+    color: var(--fg);
+    cursor: pointer;
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 0.85rem;
+    text-align: start;
+    width: 100%;
+    transition: background 0.15s;
+  }
+  .wiki-note-item:hover {
+    background: var(--bg-hover);
+  }
+  .wiki-note-item .link-icon {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    color: var(--accent);
+  }
+  .wiki-note-item span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .wiki-link-dialog .empty-msg {
+    color: var(--fg-muted);
+    font-size: 0.85rem;
+    padding: 12px 10px;
+    text-align: center;
   }
 </style>

@@ -27,7 +27,9 @@ export async function initWorkspace(): Promise<TreeNode[]> {
       {
         id: 'folder-a', name: 'Folder A', type: 'folder', expanded: true, children: [
           { id: 'note-1', name: 'Note1.md', type: 'note' },
-          { id: 'note-2', name: 'Note2.md', type: 'note' }
+          { id: 'note-2', name: 'Note2.md', type: 'note' },
+          { id: 'note-4', name: 'مثال روابط.md', type: 'note' },
+          { id: 'note-5', name: 'مستهدف الرابط.md', type: 'note' },
         ]
       },
       { id: 'folder-b', name: 'Folder B', type: 'folder' },
@@ -37,6 +39,14 @@ export async function initWorkspace(): Promise<TreeNode[]> {
     await invoke('write_text_file', {
       path: `${dir}/note-1.md`,
       content: `# مقدمة\n\nهذا مثال على كتابة علمية عربية.\nيمكن استخدام Finite Element Analysis في دراسة الإجهادات.\n\n$$\nF = ma\n$$\n\n$$\n\\sigma = \\frac{F}{A}\n$$`
+    });
+    await invoke('write_text_file', {
+      path: `${dir}/note-4.md`,
+      content: `# مثال الروابط\n\nهذه الصفحة تحتوي على [[مستهدف الرابط]] و[[Note2]].\n\nيمكنك النقر على الرابط للانتقال إلى الصفحة المستهدفة.`
+    });
+    await invoke('write_text_file', {
+      path: `${dir}/note-5.md`,
+      content: `# مستهدف الرابط\n\nهذه الصفحة يستهدفها الرابط من [[مثال روابط]].\n\nعند عرض هذه الصفحة، ستظهر الروابط الواردة في اللوحة الجانبية.`
     });
     return defaultHierarchy;
   }

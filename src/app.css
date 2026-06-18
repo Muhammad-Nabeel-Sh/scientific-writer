@@ -83,10 +83,39 @@ html, body { height: 100%; overflow: hidden; direction: rtl; background: var(--b
 }
 
 /* Preview */
-.preview { line-height: 1.7; padding: 1rem 2rem; direction: ltr; }
+.preview {
+  line-height: 1.8;
+  padding: 1rem 2rem;
+  direction: ltr;
+  overflow: visible;
+}
+.preview p {
+  padding-top: 0.15em;
+  padding-bottom: 0.15em;
+  overflow: visible;
+}
 .preview [dir] { text-align: start; }
 .preview :is(pre, table) { direction: ltr; }
 .preview :is(ul, ol) { direction: auto; unicode-bidi: plaintext; }
+.preview-header {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.5rem 1rem 0;
+  background: #fff;
+  border-bottom: 1px solid #eee;
+}
+.endnote-toggle {
+  font-size: 0.85rem;
+  color: #555;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  user-select: none;
+}
+.endnote-toggle input {
+  cursor: pointer;
+}
 .preview h1, .preview h2, .preview h3 { margin: 1.2em 0 0.5em; color: #111; }
 .preview p { margin-bottom: 1em; }
 .preview a { color: #1a73e8; }
@@ -299,9 +328,159 @@ html, body { height: 100%; overflow: hidden; direction: rtl; background: var(--b
 .preview .missing-citations ul { margin: 0; padding-inline-start: 1.5rem; }
 .preview .missing-citations li { font-family: var(--font-mono); font-size: 0.85rem; color: #856404; }
 
+/* Footnotes */
+.preview .footnote-ref {
+  font-size: 0.75em;
+  vertical-align: super;
+  line-height: 1;
+}
+.preview .footnote-ref a {
+  color: #1a73e8;
+  text-decoration: none;
+}
+.preview .footnote-ref a:hover {
+  text-decoration: underline;
+}
+.preview hr.footnotes-sep {
+  margin: 2rem 0 1rem;
+  border: none;
+  border-top: 1px solid #ccc;
+}
+.preview .footnotes {
+  margin: 1rem 0;
+  font-size: 0.9rem;
+}
+.preview .footnotes ol.footnotes-list {
+  padding-inline-start: 2rem;
+}
+.preview .footnotes li.footnote-item {
+  margin-bottom: 0.5rem;
+  line-height: 1.6;
+}
+.preview .footnote-backref {
+  color: #1a73e8;
+  text-decoration: none;
+  font-size: 0.85em;
+  margin-inline-start: 0.3em;
+}
+.preview .footnote-backref:hover {
+  text-decoration: underline;
+}
+.preview .endnotes-title {
+  font-size: 1.3rem;
+  margin-bottom: 0.8rem;
+  color: #111;
+}
+
 /* KaTeX */
 .katex { font-size: 1.1em; }
 .katex-display { margin: 1em 0; text-align: center; }
+
+/* ── Classical Arabic Book Layout ── */
+
+.classical-page {
+  max-width: 800px;
+  margin: 2rem auto;
+  padding: 2rem;
+  background: #fefcf5;
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.12);
+  border-radius: 6px;
+  font-family: 'Amiri', 'Noto Naskh Arabic', serif;
+  line-height: 2.2;
+  color: #2a2a2a;
+}
+
+.preview .matn {
+  font-size: 1.15rem;
+  font-weight: 700;
+  text-align: center;
+  padding: 1.5rem 2rem;
+  margin: 1rem 0;
+  background: #fffdf7;
+  border: 1px solid #e0d5c0;
+  border-radius: 8px;
+  line-height: 2.4;
+}
+.preview .matn.chapter {
+  font-size: 1.35rem;
+  border: none;
+  border-bottom: 2px solid #8b7355;
+  border-radius: 0;
+  padding: 0.5rem 0 0.75rem;
+  margin-bottom: 1.5rem;
+  background: transparent;
+}
+.preview .matn.chapter + .matn {
+  margin-top: -0.5rem;
+}
+
+.preview .sharh {
+  font-size: 0.95rem;
+  line-height: 2;
+  padding: 1rem 1.5rem;
+  color: #333;
+  margin: 0.5rem 0;
+}
+.preview .sharh p {
+  margin-bottom: 0.75em;
+}
+
+.preview .hashiyah {
+  font-size: 0.8rem;
+  line-height: 1.8;
+  color: #666;
+  border-top: 1px solid #e0d5c0;
+  padding-top: 0.75rem;
+  margin-top: 1.25rem;
+  column-count: 2;
+  column-gap: 1.5rem;
+  column-rule: 1px solid #ede5d8;
+}
+.preview .hashiyah p {
+  break-inside: avoid;
+  margin-bottom: 0.4em;
+  padding: 0.15em 0;
+}
+.preview .hashiyah-ref {
+  font-weight: 700;
+  color: #8b7355;
+  margin-inline-end: 0.3em;
+}
+.preview .hashiyah-anchor {
+  color: #8b7355;
+  font-weight: 700;
+  font-size: 0.85em;
+  cursor: help;
+}
+
+/* Interlinear gloss */
+.preview .interlinear-unit {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  vertical-align: middle;
+  line-height: 1.15;
+  margin: 0 0.05em;
+}
+.preview .interlinear-base {
+  font-size: 1em;
+}
+.preview .interlinear-gloss {
+  font-size: 0.6em;
+  color: #888;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+/* Responsive: stack hashiyah to single column on narrow view */
+@media (max-width: 700px) {
+  .preview .hashiyah {
+    column-count: 1;
+  }
+  .classical-page {
+    padding: 1rem;
+  }
+}
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 8px; height: 8px; }

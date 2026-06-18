@@ -142,7 +142,7 @@ export function academicBlocksPlugin(md: MarkdownIt): void {
         const titleHtml = title ? md.utils.escapeHtml(title) : '';
         const titleAttr = titleHtml ? ` <span class="block-title">${titleHtml}</span>` : '';
 
-        return `<figure class="academic-block ${canonicalType}" id="${id}" dir="${dir}">\n<details>\n<summary><span class="block-label">${labelHtml}</span>${titleAttr}</summary>\n`;
+        return `<figure class="academic-block ${canonicalType}" id="${id}" dir="${dir}">\n<details open>\n<summary><span class="block-label">${labelHtml}</span>${titleAttr}</summary>\n`;
       }
 
       return `</details>\n</figure>\n`;

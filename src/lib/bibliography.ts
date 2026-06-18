@@ -4,6 +4,15 @@ export interface BibEntry {
   fields: Record<string, string>;
 }
 
+export function isArabicEntry(entry: BibEntry): boolean {
+  const text = (entry.fields.author || '') + (entry.fields.title || '');
+  return /[\u0600-\u06FF]/.test(text);
+}
+
+export function isArabicText(text: string): boolean {
+  return /[\u0600-\u06FF]/.test(text);
+}
+
 export function parseBibTeX(content: string): BibEntry[] {
   const entries: BibEntry[] = [];
   let i = 0;
@@ -129,19 +138,58 @@ function getShortAuthorArabic(authorStr: string): string {
   return `${lastNames[0]} وآخرون`;
 }
 
-export function isArabicEntry(entry: BibEntry): boolean {
-  const text = (entry.fields.author || '') + (entry.fields.title || '');
-  return /[\u0600-\u06FF]/.test(text);
+export function formatInText(entry: BibEntry): string {
+  const arabic = isArabicEntry(entry);
+
+  if (arabic) {
+    return formatInTextArabic(entry);
+  }
+
+  const year = entry.fields.year?.replace(/[{}]/g, '') || 'n.d.';
+  const author = getShortAuthor(entry.fields.author || '') || 'Unknown';
+  return `${author}, ${year}`;
 }
 
-export function formatInText(entry: BibEntry): string {
-  const year = entry.fields.year?.replace(/[{}]/g, '') || 'n.d.';
-  const arabic = isArabicEntry(entry);
-  const author = arabic
-    ? getShortAuthorArabic(entry.fields.author || '')
-    : getShortAuthor(entry.fields.author || '');
-  const authorText = author || (arabic ? 'مجهول' : 'Unknown');
-  return `${authorText}, ${year}`;
+function formatInTextArabic(entry: BibEntry): string {
+  const year = entry.fields.year?.replace(/[{}]/g, '') || 'د.ت.';
+
+  if (entry.type === 'manuscript') {
+    return formatManuscriptCitation(entry.fields) + (year !== 'د.ت.' ? `، ${year}` : '');
+  }
+
+  if (entry.type === 'tabaqat') {
+    return formatTabaqatCitation(entry.fields);
+  }
+
+  const author = getShortAuthorArabic(entry.fields.author || '') || 'مجهول';
+  return `${author}، ${year}`;
+}
+
+function formatManuscriptCitation(fields: Record<string, string>): string {
+  const siglum = fields.library || fields.siglum || '';
+  const shelf = fields.shelfmark || fields.number || '';
+  const folio = fields.folio || '';
+  const side = fields.side || '';
+  let result = siglum;
+  if (shelf) result += ` ${shelf}`;
+  if (folio) {
+    result += `، ورقة ${folio}`;
+    if (side) result += side;
+  }
+  return result.trim() || 'مخطوط';
+}
+
+function formatTabaqatCitation(fields: Record<string, string>): string {
+  const author = fields.author || '';
+  const tabaqa = fields.tabaqa || fields.generation || '';
+  const death = fields.death || fields.year || '';
+  const page = fields.pages || fields.page || '';
+  const parts: string[] = [];
+  if (author) parts.push(author.replace(/[{}]/g, '').trim());
+  if (tabaqa) parts.push(`الطبقة ${tabaqa}`);
+  if (death) parts.push(`ت ${death}`);
+  if (page) parts.push(`ص ${page}`);
+  return parts.join('، ');
 }
 
 export function bibliographyHeading(entries: BibEntry[]): string {
@@ -149,6 +197,10 @@ export function bibliographyHeading(entries: BibEntry[]): string {
 }
 
 export function formatBibliographyEntry(entry: BibEntry, index: number): string {
+  if (isArabicEntry(entry)) {
+    return formatArabicBibliographyEntry(entry, index);
+  }
+
   const clean = (s: string) => s.replace(/[{}]/g, '').trim();
   const author = clean(entry.fields.author || '');
   const title = clean(entry.fields.title || '');
@@ -191,6 +243,63 @@ export function formatBibliographyEntry(entry: BibEntry, index: number): string 
   return text;
 }
 
+function formatArabicBibliographyEntry(entry: BibEntry, index: number): string {
+  const clean = (s: string) => s.replace(/[{}]/g, '').trim();
+  const author = clean(entry.fields.author || '');
+  const title = clean(entry.fields.title || '');
+  const year = clean(entry.fields.year || 'د.ت.');
+  const journal = clean(entry.fields.journal || '');
+  const booktitle = clean(entry.fields.booktitle || '');
+  const publisher = clean(entry.fields.publisher || '');
+  const volume = clean(entry.fields.volume || '');
+  const number = clean(entry.fields.number || '');
+  const pages = clean(entry.fields.pages || '');
+  const note = clean(entry.fields.note || '');
+  const school = clean(entry.fields.school || '');
+  const edition = clean(entry.fields.edition || '');
+
+  if (entry.type === 'manuscript') {
+    return `[${index}] ${author ? author + '. ' : ''}«${title}». ${formatManuscriptCitation(entry.fields)}${year !== 'د.ت.' ? ` (${year})` : ''}.`;
+  }
+
+  if (entry.type === 'tabaqat') {
+    return `[${index}] ${author ? author + '. ' : ''}«${title}». ${formatTabaqatCitation(entry.fields)}.`;
+  }
+
+  let text = `[${index}] ${author}`;
+  if (year !== 'د.ت.') text += ` (${year})`;
+  text += `. «${title}»`;
+
+  if (entry.type === 'article') {
+    if (journal) text += `. مجلة: ${journal}`;
+    if (volume) text += `، جـ ${volume}`;
+    if (number) text += ` (ع ${number})`;
+    if (pages) text += `، ص ${pages}`;
+    text += '.';
+  } else if (entry.type === 'book') {
+    if (edition) text += ` (ط ${edition})`;
+    if (publisher) text += `. الناشر: ${publisher}`;
+    text += '.';
+  } else if (entry.type === 'inproceedings' || entry.type === 'incollection') {
+    if (booktitle) text += `. في «${booktitle}»`;
+    if (publisher) text += `. الناشر: ${publisher}`;
+    if (pages) text += `، ص ${pages}`;
+    text += '.';
+  } else if (entry.type === 'phdthesis') {
+    text += '. رسالة دكتوراه';
+    if (school) text += `، ${school}`;
+    text += '.';
+  } else if (entry.type === 'mastersthesis') {
+    text += '. رسالة ماجستير';
+    if (school) text += `، ${school}`;
+    text += '.';
+  } else {
+    text += '.';
+  }
+  if (note) text += ` ${note}`;
+  return text;
+}
+
 /**
  * Replace all [@key] citations in text with formatted in-text citations.
  * Returns modified text plus lists of used and missing citation keys.
@@ -203,13 +312,18 @@ export function replaceCitations(text: string, entries: BibEntry[]): { text: str
   const result = text.replace(/\[@([^\]]+)\]/g, (_match, keyGroup: string) => {
     const keys = keyGroup.split(';').map(k => k.trim().replace(/^@/, '')).filter(Boolean);
     const formatted = keys.map(key => {
-      const entry = entryMap.get(key);
+      const isMs = key.startsWith('ms:');
+      const isTab = key.startsWith('tab:');
+      const realKey = isMs ? key.slice(3) : isTab ? key.slice(4) : key;
+      const entry = entryMap.get(realKey);
       if (entry) {
-        if (!seenKeys.has(key)) { seenKeys.add(key); usedKeys.push(key); }
+        if (!seenKeys.has(realKey)) { seenKeys.add(realKey); usedKeys.push(realKey); }
+        if (isMs) return formatInTextArabic({ ...entry, type: 'manuscript' });
+        if (isTab) return formatInTextArabic({ ...entry, type: 'tabaqat' });
         return formatInText(entry);
       }
-      if (!seenKeys.has(key)) { seenKeys.add(key); missingKeys.push(key); }
-      return `?${key}?`;
+      if (!seenKeys.has(realKey)) { seenKeys.add(realKey); missingKeys.push(realKey); }
+      return `?${realKey}?`;
     });
     return `(${formatted.join('; ')})`;
   });

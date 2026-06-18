@@ -6,9 +6,17 @@ import 'katex/dist/katex.min.css';
 import type { BibEntry } from './bibliography';
 import { replaceCitations, generateBibliographyHtml } from './bibliography';
 import { academicBlocksPlugin, resetBlockState, resolveBlockRefs } from './blocks';
+import { footnotePlugin } from './footnotes';
+import { classicalBookPlugin, renderInterlinearGloss } from './markdown-classical';
+
+export type DigitStyle = 'auto' | 'eastern' | 'western';
 
 const ARABIC_INDIC = '٠١٢٣٤٥٦٧٨٩';
 const arabicRe = /[\u0600-\u06FF]/;
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
 
 function renderPoem(str: string): string {
   const lines = str.trim().split('\n');
@@ -25,16 +33,16 @@ function renderPoem(str: string): string {
 
   const inner = verses.map(v => {
     if (!v.ajuz) {
-      return `<div class="poem-verse single"><span class="verse-sadr">${md.utils.escapeHtml(v.sadr)}</span></div>`;
+      return `<div class="poem-verse single"><span class="verse-sadr">${escapeHtml(v.sadr)}</span></div>`;
     }
-    return `<div class="poem-verse"><span class="verse-sadr">${md.utils.escapeHtml(v.sadr)}</span><div class="verse-gap"></div><span class="verse-ajuz">${md.utils.escapeHtml(v.ajuz)}</span></div>`;
+    return `<div class="poem-verse"><span class="verse-sadr">${escapeHtml(v.sadr)}</span><div class="verse-gap"></div><span class="verse-ajuz">${escapeHtml(v.ajuz)}</span></div>`;
   }).join('\n');
 
   return `<div class="arabic-poem" dir="rtl">\n${inner}\n</div>`;
 }
 
 const md = new MarkdownIt({
-  html: false,
+  html: true,
   linkify: true,
   typographer: true,
   breaks: true,
@@ -53,7 +61,7 @@ const md = new MarkdownIt({
 }).use(katex, {
   throwOnError: false,
   displayMode: true,
-}).use(academicBlocksPlugin);
+}).use(academicBlocksPlugin).use(footnotePlugin).use(classicalBookPlugin);
 
 export interface EquationInfo {
   id: string;
@@ -65,21 +73,18 @@ export interface EquationInfo {
 export function parseEquationsFromText(text: string): EquationInfo[] {
   const result: EquationInfo[] = [];
   let num = 0;
-  const parts = text.split(/^(?:```[\s\S]*?```)$/gm);
-  for (let pi = 0; pi < parts.length; pi += 2) {
-    parts[pi].replace(/\$\$[\s\S]*?\$\$(?:\s*\{#eq:(\w+)\}\s*)?/g, (match) => {
-      num++;
-      const latexMatch = match.match(/\$\$([\s\S]*?)\$\$/);
-      const latex = latexMatch ? latexMatch[1].trim() : '';
-      const labelMatch = match.match(/\{#eq:(\w+)\}/);
-      if (labelMatch) {
-        result.push({ id: `eq:${labelMatch[1]}`, number: num, label: labelMatch[1], latex });
-      } else {
-        result.push({ id: `eq-${num}`, number: num, latex });
-      }
-      return match;
-    });
-  }
+  text.replace(/(```[\s\S]*?```)|(\$\$[\s\S]*?\$\$(?:\s*\{#eq:(\w+)\}\s*)?)/g, (match, fence, math, label) => {
+    if (fence) return match;
+    num++;
+    const latexMatch = match.match(/\$\$([\s\S]*?)\$\$/);
+    const latex = latexMatch ? latexMatch[1].trim() : '';
+    if (label) {
+      result.push({ id: `eq:${label}`, number: num, label, latex });
+    } else {
+      result.push({ id: `eq-${num}`, number: num, latex });
+    }
+    return match;
+  });
   return result;
 }
 
@@ -152,10 +157,12 @@ md.renderer.rules.image = (tokens, idx, options, env, self) => {
   </figure>`;
 };
 
-function convertArabicDigits(text: string): string {
-  if (!arabicRe.test(text)) return text;
-  // Replace digits outside inline code, math, URLs, citations, equation labels, and equation references
-  return text.split(/(`[^`]*`|\$\$[^$]*\$\$|\$[^$]*\$|!\[[^\]]*\]\([^)]*\)|\[[^\]]*\]\([^)]*\)|\[\@[^\]]*\]|\[ref:[^\]]*\]|\{#eq:[^}]*\})/g).map((part, i) => {
+function convertArabicDigits(text: string, style: DigitStyle = 'auto'): string {
+  if (style === 'western') return text;
+  const shouldConvert = style === 'eastern' || (style === 'auto' && arabicRe.test(text));
+  if (!shouldConvert) return text;
+  // Replace digits outside inline code, math, URLs, citations, equation labels, equation references, and footnote refs
+  return text.split(/(`[^`]*`|\$\$[^$]*\$\$|\$[^$]*\$|!\[[^\]]*\]\([^)]*\)|\[[^\]]*\]\([^)]*\)|\[\@[^\]]*\]|\[ref:[^\]]*\]|\{#eq:[^}]*\}|\[\^[^\]]*\])/g).map((part, i) => {
     if (i % 2 === 0) {
       return part.replace(/[0-9]/g, d => ARABIC_INDIC[+d]);
     }
@@ -259,13 +266,15 @@ export function getLastCitationResult(): { usedKeys: string[]; missingKeys: stri
   return { usedKeys: lastUsedKeys, missingKeys: lastMissingKeys };
 }
 
-export function renderMarkdown(text: string, bibEntries?: BibEntry[]): string {
+export function renderMarkdown(text: string, bibEntries?: BibEntry[], digitStyle?: DigitStyle): string {
   try {
     resetFigureState();
     lastUsedKeys = [];
     lastMissingKeys = [];
 
-    // Pre-process: convert digits and turn soft returns into hard returns
+    const style = digitStyle || 'auto';
+
+    // Pre-process: convert digits (configurable) and turn soft returns into hard returns
     const lines = text.split('\n');
     let inFence = false;
     const resultLines: string[] = [];
@@ -276,7 +285,7 @@ export function renderMarkdown(text: string, bibEntries?: BibEntry[]): string {
         inFence = !inFence;
       }
       if (!inFence && !isFenceLine && !/^ {4}/.test(line)) {
-        resultLines.push(convertArabicDigits(line));
+        resultLines.push(convertArabicDigits(line, style));
       } else {
         resultLines.push(line);
       }
@@ -313,25 +322,21 @@ export function renderMarkdown(text: string, bibEntries?: BibEntry[]): string {
     let processed = cleanLines.join('\n');
 
     // Equation parsing: extract $$...$$ blocks outside code fences, strip {#eq:label}
+    // Uses alternation to match fences (pass through) or math (extract)
     let eqNum = 0;
     equationInfos = [];
-    const eqParts = processed.split(/^(?:```[\s\S]*?```)$/gm);
-    for (let pi = 0; pi < eqParts.length; pi += 2) {
-      eqParts[pi] = eqParts[pi].replace(/\$\$[\s\S]*?\$\$(?:\s*\{#eq:(\w+)\}\s*)?/g, (match) => {
-        eqNum++;
-        const latexMatch = match.match(/\$\$([\s\S]*?)\$\$/);
-        const latex = latexMatch ? latexMatch[1].trim() : '';
-        const labelMatch = match.match(/\{#eq:(\w+)\}/);
-        if (labelMatch) {
-          const label = labelMatch[1];
-          equationInfos.push({ id: `eq:${label}`, number: eqNum, label, latex });
-          return match.replace(/\s*\{#eq:\w+\}\s*$/, '');
-        }
-        equationInfos.push({ id: `eq-${eqNum}`, number: eqNum, latex });
-        return match;
-      });
-    }
-    processed = eqParts.join('');
+    processed = processed.replace(/(```[\s\S]*?```)|(\$\$[\s\S]*?\$\$(?:\s*\{#eq:(\w+)\}\s*)?)/g, (match, fence, math, label) => {
+      if (fence) return fence;
+      eqNum++;
+      const latexMatch = match.match(/\$\$([\s\S]*?)\$\$/);
+      const latex = latexMatch ? latexMatch[1].trim() : '';
+      if (label) {
+        equationInfos.push({ id: `eq:${label}`, number: eqNum, label, latex });
+        return match.replace(/\s*\{#eq:\w+\}\s*$/, '');
+      }
+      equationInfos.push({ id: `eq-${eqNum}`, number: eqNum, latex });
+      return match;
+    });
 
     // Citation replacement
     if (bibEntries && bibEntries.length > 0) {
@@ -341,8 +346,11 @@ export function renderMarkdown(text: string, bibEntries?: BibEntry[]): string {
       lastMissingKeys = result.missingKeys;
     }
 
+    // Interlinear gloss pre-processor (classical Arabic book layout)
+    processed = renderInterlinearGloss(processed);
+
     resetBlockState();
-    const html = md.render(processed);
+    const html = md.render(processed, {});
     let htmlOut = html.replace(
       /<(p|h[1-6]|blockquote|pre|th|td|li)\b/gi,
       '<$1 dir="auto"',
