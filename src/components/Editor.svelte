@@ -16,6 +16,7 @@
   import HadithDialog from "./HadithDialog.svelte";
   import CitationDialog from "./CitationDialog.svelte";
   import EquationDialog from "./EquationDialog.svelte";
+  import EnvironmentDialog from "./EnvironmentDialog.svelte";
 
   let textareaRef: HTMLTextAreaElement;
   let saveTimeout: ReturnType<typeof setTimeout>;
@@ -29,6 +30,7 @@
   let showHadithDialog = false;
   let showCitationDialog = false;
   let showEquationDialog = false;
+  let showEnvironmentDialog = false;
   let tableRows = 3;
   let tableCols = 4;
   let tableLang: "arabic" | "english" = "arabic";
@@ -245,6 +247,20 @@
 
   function openEquationDialog() {
     showEquationDialog = true;
+  }
+
+  function insertEnvironmentBlock(type: string) {
+    pushHistory();
+    const ta = textareaRef;
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const opening = `\n::: ${type}\n`;
+    const text = opening + '\n:::\n';
+    ta.value = ta.value.substring(0, start) + text + ta.value.substring(end);
+    const pos = start + opening.length;
+    ta.selectionStart = ta.selectionEnd = pos;
+    ta.focus();
+    ta.dispatchEvent(new Event("input", { bubbles: true }));
   }
 
   function insertPoetry() {
@@ -615,6 +631,12 @@
   {#if showEquationDialog}
     <EquationDialog on:close={() => (showEquationDialog = false)} {insertAtCursor} />
   {/if}
+  {#if showEnvironmentDialog}
+    <EnvironmentDialog
+      on:close={() => (showEnvironmentDialog = false)}
+      insertBlock={insertEnvironmentBlock}
+    />
+  {/if}
 
   <textarea
     bind:this={textareaRef}
@@ -709,6 +731,23 @@
     <button class="tb-quran" on:click={openEquationDialog}>
       Σ
       <span>معادلة</span>
+    </button>
+    <button class="tb-quran" on:click={() => (showEnvironmentDialog = true)}>
+      <svg
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        fill="none"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <rect x="3" y="3" width="18" height="18" rx="2" />
+        <line x1="9" y1="3" x2="9" y2="21" />
+        <line x1="15" y1="3" x2="15" y2="21" />
+        <line x1="3" y1="9" x2="21" y2="9" />
+        <line x1="3" y1="15" x2="21" y2="15" />
+      </svg>
+      <span>بيئة</span>
     </button>
   </div>
 </div>

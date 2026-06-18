@@ -5,8 +5,7 @@ import 'highlight.js/styles/github.css';
 import 'katex/dist/katex.min.css';
 import type { BibEntry } from './bibliography';
 import { replaceCitations, generateBibliographyHtml } from './bibliography';
-import { theoremPlugin, resetTheoremState, getTheoremInfos, getTheoremLabels } from './theorems';
-import type { TheoremInfo } from './theorems';
+import { academicBlocksPlugin, resetBlockState, resolveBlockRefs } from './blocks';
 
 const ARABIC_INDIC = '٠١٢٣٤٥٦٧٨٩';
 const arabicRe = /[\u0600-\u06FF]/;
@@ -54,7 +53,7 @@ const md = new MarkdownIt({
 }).use(katex, {
   throwOnError: false,
   displayMode: true,
-}).use(theoremPlugin);
+}).use(academicBlocksPlugin);
 
 export interface EquationInfo {
   id: string;
@@ -342,7 +341,7 @@ export function renderMarkdown(text: string, bibEntries?: BibEntry[]): string {
       lastMissingKeys = result.missingKeys;
     }
 
-    resetTheoremState();
+    resetBlockState();
     const html = md.render(processed);
     let htmlOut = html.replace(
       /<(p|h[1-6]|blockquote|pre|th|td|li)\b/gi,
@@ -407,23 +406,7 @@ export function renderMarkdown(text: string, bibEntries?: BibEntry[]): string {
       });
     }
 
-    // Resolve theorem references [ref:thm:label]
-    const theoremInfos = getTheoremInfos();
-    if (theoremInfos.length > 0) {
-      const thmRefMap = new Map<string, TheoremInfo>();
-      for (const thm of theoremInfos) {
-        if (thm.label) thmRefMap.set(thm.label, thm);
-        thmRefMap.set(thm.id, thm);
-      }
-      const currentLabels = getTheoremLabels();
-      htmlOut = htmlOut.replace(/\[ref:thm:([^\]]+)\]/g, (_match, ref) => {
-        const thm = thmRefMap.get(ref);
-        if (thm) {
-          return `<a href="#${thm.id}" class="theorem-ref">${currentLabels[thm.type]} ${thm.number}</a>`;
-        }
-        return `<span class="theorem-ref-unresolved">[ref:thm:${ref}]</span>`;
-      });
-    }
+    htmlOut = resolveBlockRefs(htmlOut);
 
     // Append bibliography
     if (bibEntries && bibEntries.length > 0 && (lastUsedKeys.length > 0 || lastMissingKeys.length > 0)) {
