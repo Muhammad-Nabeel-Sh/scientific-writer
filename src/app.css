@@ -213,6 +213,67 @@ html, body { height: 100%; overflow: hidden; direction: rtl; background: var(--b
   font-style: italic;
 }
 
+/* Theorem Blocks */
+.preview .theorem-block {
+  margin: 1.5rem 0;
+  border-inline-start: 4px solid;
+  border-radius: 6px;
+  background: #f8f9fa;
+  overflow: hidden;
+}
+.preview .theorem-block details {
+  padding: 0.6rem 1rem;
+}
+.preview .theorem-block summary {
+  cursor: pointer;
+  padding: 0.25rem 0;
+  font-weight: 700;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #333;
+}
+.preview .theorem-block summary::-webkit-details-marker {
+  color: #999;
+}
+.preview .theorem-block details[open] summary {
+  margin-bottom: 0.75rem;
+  border-bottom: 1px solid #e0e0e0;
+  padding-bottom: 0.5rem;
+}
+.preview .theorem-label {
+  font-weight: 700;
+  font-style: italic;
+}
+.preview .theorem-title {
+  font-weight: 400;
+  color: #555;
+}
+.preview .theorem-block.theorem { border-color: #1a73e8; }
+.preview .theorem-block.theorem .theorem-label { color: #1a73e8; }
+.preview .theorem-block.definition { border-color: #34a853; }
+.preview .theorem-block.definition .theorem-label { color: #34a853; }
+.preview .theorem-block.lemma { border-color: #9334e6; }
+.preview .theorem-block.lemma .theorem-label { color: #9334e6; }
+.preview .theorem-block.corollary { border-color: #ea8600; }
+.preview .theorem-block.corollary .theorem-label { color: #ea8600; }
+.preview .theorem-block :last-child {
+  margin-bottom: 0;
+}
+.preview .theorem-ref {
+  color: #1a73e8;
+  text-decoration: none;
+  cursor: pointer;
+}
+.preview .theorem-ref:hover {
+  text-decoration: underline;
+}
+.preview .theorem-ref-unresolved {
+  color: #c00;
+  font-style: italic;
+}
+
 /* Bibliography */
 .preview .bib-sep { margin: 2rem 0 1rem; border: none; border-top: 1px solid #ccc; }
 .preview .bibliography { margin: 1rem 0; }
