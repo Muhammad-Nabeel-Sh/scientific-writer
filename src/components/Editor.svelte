@@ -949,7 +949,17 @@
       <span>كود</span>
     </button>
     <button class="tb-quran" on:click={openEquationDialog}>
-      Σ
+      <svg
+        xmlns="http://w3.org"
+        viewBox="0 0 100 100"
+        width="100%"
+        height="100%"
+      >
+        <path
+          d="M 25,20 L 75,20 L 75,30 L 40,30 L 60,50 L 40,70 L 75,70 L 75,80 L 25,80 L 25,75 L 50,50 L 25,25 Z"
+          fill="currentColor"
+        />
+      </svg>
       <span>معادلة</span>
     </button>
     <button class="tb-quran" on:click={() => (showEnvironmentDialog = true)}>
@@ -1130,6 +1140,7 @@
     font-size: 0.9rem;
     letter-spacing: 0.02em;
     font-weight: 700;
+    font-family: "Amiri", serif;
   }
   .tb-quran:hover {
     background: rgba(255, 255, 255, 0.06);
