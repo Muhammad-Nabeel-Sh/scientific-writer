@@ -18,6 +18,7 @@
   import CitationDialog from "./CitationDialog.svelte";
   import EquationDialog from "./EquationDialog.svelte";
   import EnvironmentDialog from "./EnvironmentDialog.svelte";
+  import DiacriticDialog from "./DiacriticDialog.svelte";
 
   let textareaRef: HTMLTextAreaElement;
   let saveTimeout: ReturnType<typeof setTimeout>;
@@ -32,6 +33,7 @@
   let showCitationDialog = false;
   let showEquationDialog = false;
   let showEnvironmentDialog = false;
+  let showDiacriticDialog = false;
   let showWikiLinkDialog = false;
   let wikiLinkSearch = '';
   let tableRows = 3;
@@ -657,6 +659,29 @@
         /><path d="M15 12h6" /><path d="M17 16h4" /></svg
       >
     </button>
+    <button
+      class="tb"
+      title="علامات التشكيل"
+      on:click={() => (showDiacriticDialog = true)}
+    >
+      <svg
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        fill="none"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <rect x="3" y="3" width="8" height="8" rx="1.5" />
+        <rect x="13" y="3" width="8" height="8" rx="1.5" />
+        <rect x="3" y="13" width="8" height="8" rx="1.5" />
+        <rect x="13" y="13" width="8" height="8" rx="1.5" />
+        <circle cx="7" cy="7" r="1.5" />
+        <circle cx="17" cy="7" r="1.5" />
+        <circle cx="7" cy="17" r="1.5" />
+        <circle cx="17" cy="17" r="1.5" />
+      </svg>
+    </button>
   </div>
 
   {#if showQuranDialog}
@@ -675,6 +700,12 @@
     <EnvironmentDialog
       on:close={() => (showEnvironmentDialog = false)}
       insertBlock={insertEnvironmentBlock}
+    />
+  {/if}
+  {#if showDiacriticDialog}
+    <DiacriticDialog
+      on:close={() => (showDiacriticDialog = false)}
+      {insertAtCursor}
     />
   {/if}
   {#if showWikiLinkDialog}
