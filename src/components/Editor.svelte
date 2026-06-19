@@ -41,23 +41,28 @@
   let showDateDialog = false;
   let showDictionaryDialog = false;
   let showWikiLinkDialog = false;
-  let wikiLinkSearch = '';
+  let wikiLinkSearch = "";
   let tableRows = 3;
   let tableCols = 4;
   let tableLang: "arabic" | "english" = "arabic";
   let tableAlign: "left" | "center" | "right" = "left";
 
-  $: flatNotes = (function collect(nodes: any[]): { id: string; name: string }[] {
+  $: flatNotes = (function collect(
+    nodes: any[],
+  ): { id: string; name: string }[] {
     const result: { id: string; name: string }[] = [];
     for (const node of nodes) {
-      if (node.type === 'note') result.push({ id: node.id, name: node.name.replace(/\.md$/i, '') });
+      if (node.type === "note")
+        result.push({ id: node.id, name: node.name.replace(/\.md$/i, "") });
       if (node.children) result.push(...collect(node.children));
     }
     return result;
   })($hierarchy);
 
   $: filteredNotes = wikiLinkSearch
-    ? flatNotes.filter(n => n.name.toLowerCase().includes(wikiLinkSearch.toLowerCase()))
+    ? flatNotes.filter((n) =>
+        n.name.toLowerCase().includes(wikiLinkSearch.toLowerCase()),
+      )
     : flatNotes;
 
   let history: string[] = [""];
@@ -69,7 +74,7 @@
   const debouncedSave = debounce(async () => {
     if (!$activeNoteId || !content.trim()) return;
     try {
-      if ($activeNoteId === '__references__') {
+      if ($activeNoteId === "__references__") {
         await writeBibliography(content);
         $bibEntries = parseBibTeX(content);
       } else {
@@ -279,7 +284,7 @@
     const start = ta.selectionStart;
     const end = ta.selectionEnd;
     const opening = `\n::: ${type}\n`;
-    const text = opening + '\n:::\n';
+    const text = opening + "\n:::\n";
     ta.value = ta.value.substring(0, start) + text + ta.value.substring(end);
     const pos = start + opening.length;
     ta.selectionStart = ta.selectionEnd = pos;
@@ -289,7 +294,7 @@
 
   function insertWikiLink(name: string) {
     showWikiLinkDialog = false;
-    wikiLinkSearch = '';
+    wikiLinkSearch = "";
     insertAtCursor(`[[${name}]]`);
   }
 
@@ -688,11 +693,7 @@
         <circle cx="17" cy="17" r="1.5" />
       </svg>
     </button>
-    <button
-      class="tb"
-      title="تفقيط"
-      on:click={() => (showTafqitDialog = true)}
-    >
+    <button class="tb" title="تفقيط" on:click={() => (showTafqitDialog = true)}>
       <svg
         viewBox="0 0 24 24"
         stroke="currentColor"
@@ -707,11 +708,7 @@
         <line x1="16" y1="3" x2="14" y2="21" />
       </svg>
     </button>
-    <button
-      class="tb"
-      title="التاريخ"
-      on:click={() => (showDateDialog = true)}
-    >
+    <button class="tb" title="التاريخ" on:click={() => (showDateDialog = true)}>
       <svg
         viewBox="0 0 24 24"
         stroke="currentColor"
@@ -735,10 +732,16 @@
     <HadithDialog on:close={() => (showHadithDialog = false)} {appendText} />
   {/if}
   {#if showCitationDialog}
-    <CitationDialog on:close={() => (showCitationDialog = false)} {insertAtCursor} />
+    <CitationDialog
+      on:close={() => (showCitationDialog = false)}
+      {insertAtCursor}
+    />
   {/if}
   {#if showEquationDialog}
-    <EquationDialog on:close={() => (showEquationDialog = false)} {insertAtCursor} />
+    <EquationDialog
+      on:close={() => (showEquationDialog = false)}
+      {insertAtCursor}
+    />
   {/if}
   {#if showEnvironmentDialog}
     <EnvironmentDialog
@@ -759,24 +762,32 @@
     />
   {/if}
   {#if showDateDialog}
-    <DateDialog
-      on:close={() => (showDateDialog = false)}
-      {insertAtCursor}
-    />
+    <DateDialog on:close={() => (showDateDialog = false)} {insertAtCursor} />
   {/if}
   {#if showDictionaryDialog}
-    <DictionaryDialog on:close={() => (showDictionaryDialog = false)} {appendText} />
+    <DictionaryDialog
+      on:close={() => (showDictionaryDialog = false)}
+      {appendText}
+    />
   {/if}
   {#if showWikiLinkDialog}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
       class="dialog-overlay"
-      on:click={() => { showWikiLinkDialog = false; wikiLinkSearch = ''; }}
+      on:click={() => {
+        showWikiLinkDialog = false;
+        wikiLinkSearch = "";
+      }}
       on:keydown
       role="presentation"
     >
       <!-- svelte-ignore a11y_interactive_supports_focus -->
-      <div class="dialog wiki-link-dialog" on:click|stopPropagation on:keydown role="dialog">
+      <div
+        class="dialog wiki-link-dialog"
+        on:click|stopPropagation
+        on:keydown
+        role="dialog"
+      >
         <h3>إدراج رابط داخلي</h3>
         <input
           type="text"
@@ -790,10 +801,25 @@
             <div class="empty-msg">لا توجد ملاحظات</div>
           {:else}
             {#each filteredNotes as note (note.id)}
-              <button class="wiki-note-item" on:click={() => insertWikiLink(note.name)}>
-                <svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="link-icon">
-                  <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
-                  <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
+              <button
+                class="wiki-note-item"
+                on:click={() => insertWikiLink(note.name)}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  fill="none"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  class="link-icon"
+                >
+                  <path
+                    d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"
+                  />
+                  <path
+                    d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"
+                  />
                 </svg>
                 <span>{note.name}</span>
               </button>
@@ -801,7 +827,13 @@
           {/if}
         </div>
         <div class="dialog-actions">
-          <button class="btn-cancel" on:click={() => { showWikiLinkDialog = false; wikiLinkSearch = ''; }}>إلغاء</button>
+          <button
+            class="btn-cancel"
+            on:click={() => {
+              showWikiLinkDialog = false;
+              wikiLinkSearch = "";
+            }}>إلغاء</button
+          >
         </div>
       </div>
     </div>
@@ -852,6 +884,7 @@
       </svg>
       <span>الحديث</span>
     </button>
+    <span class="bar-div"></span>
     <button class="tb-quran" on:click={insertPoetry}>
       <svg
         viewBox="0 0 24 24"
@@ -900,6 +933,7 @@
       </svg>
       <span>قاموس</span>
     </button>
+    <span class="bar-div"></span>
     <button class="tb-quran" on:click={() => insertAtCursor("\n```\n\n```\n")}>
       <svg
         viewBox="0 0 24 24"
@@ -1074,36 +1108,48 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    padding: 4px 0;
-    border-top: 1px solid var(--border);
+    gap: 2px;
+    padding: 5px 16px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
     flex-shrink: 0;
     position: sticky;
     bottom: 0;
     background: var(--bg);
   }
   .tb-quran {
-    background: #2a2a2a;
-    border: 1px solid var(--border);
+    background: transparent;
+    border: none;
     color: var(--fg-muted);
     cursor: pointer;
-    padding: 4px 10px;
+    padding: 5px 8px;
     border-radius: 6px;
     display: flex;
     align-items: center;
-    gap: 6px;
-    transition:
-      background 0.15s,
-      color 0.15s;
-    font-size: 0.8rem;
+    gap: 4px;
+    transition: all 0.12s ease;
+    font-size: 0.9rem;
+    letter-spacing: 0.02em;
+    font-weight: 700;
   }
   .tb-quran:hover {
-    background: #3a3a3a;
-    color: var(--fg);
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--accent);
+  }
+  .tb-quran:active {
+    background: rgba(255, 255, 255, 0.1);
   }
   .tb-quran svg {
-    width: 16px;
-    height: 16px;
+    width: 15px;
+    height: 15px;
+    color: var(--accent);
+  }
+  .bar-div {
+    display: block;
+    width: 1px;
+    height: 18px;
+    background: rgba(255, 255, 255, 0.07);
+    margin: 0 5px;
+    flex-shrink: 0;
   }
   .dialog-overlay {
     position: fixed;

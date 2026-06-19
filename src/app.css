@@ -1,7 +1,7 @@
 :root {
-  --bg: #121212;
-  /* --bg-panel: #1a1a1a; */
-  --bg-panel: #1f2428;
+  --bg: #1a1a1a;
+  --bg-panel: #1a1a1a;
+  /* --bg-panel: #1f2428; */
   --bg-hover: #444444;
   --fg: #e0e0e0;
   --fg-muted: #888;
