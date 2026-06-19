@@ -239,26 +239,30 @@
     on:keydown
     role="dialog"
   >
-    <h3>إدراج علامة تشكيل</h3>
-    {#each sections as section}
-      <div class="diacritic-section">
-        <span class="section-label">{section.heading}</span>
-        <div class="diacritic-grid">
-          {#each section.items as item}
-            <button
-              class="diacritic-btn"
-              title={item.label}
-              on:click={() => insert(item.char)}
-              on:mouseenter={(e) => showTooltip(item, e)}
-              on:mouseleave={hideTooltip}
-            >
-              <span class="diacritic-char">{item.char}</span>
-              <span class="diacritic-label">{item.label}</span>
-            </button>
-          {/each}
+    <div class="dialog-header">
+      <h3>إدراج علامة تشكيل</h3>
+    </div>
+    <div class="dialog-body">
+      {#each sections as section}
+        <div class="diacritic-section">
+          <span class="section-label">{section.heading}</span>
+          <div class="diacritic-grid">
+            {#each section.items as item}
+              <button
+                class="diacritic-btn"
+                title={item.label}
+                on:click={() => insert(item.char)}
+                on:mouseenter={(e) => showTooltip(item, e)}
+                on:mouseleave={hideTooltip}
+              >
+                <span class="diacritic-char">{item.char}</span>
+                <span class="diacritic-label">{item.label}</span>
+              </button>
+            {/each}
+          </div>
         </div>
-      </div>
-    {/each}
+      {/each}
+    </div>
     <div class="dialog-actions">
       <button class="btn-cancel" on:click={() => dispatch("close")}
         >إغلاق</button
@@ -292,17 +296,25 @@
     background: var(--bg-panel);
     border: 1px solid var(--border);
     border-radius: 10px;
-    padding: 1.5rem;
     display: flex;
     flex-direction: column;
-    gap: 16px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
     position: relative;
-    padding-top: 28%;
+    max-height: 85vh;
   }
-  .dialog h3 {
+  .dialog-header {
+    flex-shrink: 0;
+    padding: 1.5rem 1.5rem 0;
+  }
+  .dialog-header h3 {
     margin: 0;
     font-size: 1.1rem;
+  }
+  .dialog-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 1.5rem;
+    margin: 1rem 0;
   }
   .diacritic-section {
     display: flex;
@@ -387,7 +399,8 @@
     display: flex;
     justify-content: flex-end;
     gap: 8px;
-    margin-top: 4px;
+    flex-shrink: 0;
+    padding: 0 1.5rem 1rem;
   }
   .btn-cancel {
     padding: 6px 16px;
