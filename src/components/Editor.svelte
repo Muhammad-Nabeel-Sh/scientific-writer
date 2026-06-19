@@ -19,6 +19,7 @@
   import EquationDialog from "./EquationDialog.svelte";
   import EnvironmentDialog from "./EnvironmentDialog.svelte";
   import DiacriticDialog from "./DiacriticDialog.svelte";
+  import TafqitDialog from "./TafqitDialog.svelte";
 
   let textareaRef: HTMLTextAreaElement;
   let saveTimeout: ReturnType<typeof setTimeout>;
@@ -34,6 +35,7 @@
   let showEquationDialog = false;
   let showEnvironmentDialog = false;
   let showDiacriticDialog = false;
+  let showTafqitDialog = false;
   let showWikiLinkDialog = false;
   let wikiLinkSearch = '';
   let tableRows = 3;
@@ -682,6 +684,25 @@
         <circle cx="17" cy="17" r="1.5" />
       </svg>
     </button>
+    <button
+      class="tb"
+      title="تفقيط"
+      on:click={() => (showTafqitDialog = true)}
+    >
+      <svg
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        fill="none"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <line x1="4" y1="9" x2="20" y2="9" />
+        <line x1="4" y1="15" x2="20" y2="15" />
+        <line x1="10" y1="3" x2="8" y2="21" />
+        <line x1="16" y1="3" x2="14" y2="21" />
+      </svg>
+    </button>
   </div>
 
   {#if showQuranDialog}
@@ -705,6 +726,12 @@
   {#if showDiacriticDialog}
     <DiacriticDialog
       on:close={() => (showDiacriticDialog = false)}
+      {insertAtCursor}
+    />
+  {/if}
+  {#if showTafqitDialog}
+    <TafqitDialog
+      on:close={() => (showTafqitDialog = false)}
       {insertAtCursor}
     />
   {/if}
