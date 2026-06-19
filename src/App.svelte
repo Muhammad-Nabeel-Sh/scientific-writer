@@ -9,7 +9,9 @@
   import Stats from "./components/Stats.svelte";
   import Editor from "./components/Editor.svelte";
   import Preview from "./components/Preview.svelte";
+  import SplashScreen from "./components/SplashScreen.svelte";
 
+  let showSplash = true;
   let leftWidth = 280;
   let rightWidth = 400;
   let isDragging = false;
@@ -80,7 +82,7 @@
 
 <div class="app-layout">
   <aside class="panel left" style="width: {leftWidth}px;">
-    <HierarchyTree />
+    <HierarchyTree on:about={() => (showSplash = true)} />
     <div class="refs-row">
       <button
         class="refs-btn"
@@ -114,3 +116,7 @@
     <Preview />
   </aside>
 </div>
+
+{#if showSplash}
+  <SplashScreen on:close={() => (showSplash = false)} />
+{/if}

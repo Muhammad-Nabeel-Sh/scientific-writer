@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { createEventDispatcher } from 'svelte';
   import { hierarchy, activeNoteId } from '$lib/stores';
   import type { TreeNode } from '$lib/stores';
   import { createId } from '$lib/utils';
@@ -6,6 +7,8 @@
   import TreeItem from './TreeItem.svelte';
   import NewProjectDialog from './NewProjectDialog.svelte';
   import SearchDialog from './SearchDialog.svelte';
+
+  const dispatch = createEventDispatcher<{ about: void }>();
 
   $: nodes = $hierarchy;
   let showNewProject = false;
@@ -121,6 +124,9 @@
     </button>
     <button class="tree-action-btn project-btn" title="مشروع جديد" on:click={openNewProject}>
       <svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" /><polyline points="20 12 20 22 4 22 4 12" /><polyline points="12 2 12 8 20 8 12 2" /><line x1="8" y1="16" x2="16" y2="16" /></svg>
+    </button>
+    <button class="tree-action-btn" title="حول" on:click={() => dispatch('about')}>
+      <svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
     </button>
   </div>
   {#each nodes as node (node.id)}
