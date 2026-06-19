@@ -20,6 +20,8 @@
   import EnvironmentDialog from "./EnvironmentDialog.svelte";
   import DiacriticDialog from "./DiacriticDialog.svelte";
   import TafqitDialog from "./TafqitDialog.svelte";
+  import DateDialog from "./DateDialog.svelte";
+  import DictionaryDialog from "./DictionaryDialog.svelte";
 
   let textareaRef: HTMLTextAreaElement;
   let saveTimeout: ReturnType<typeof setTimeout>;
@@ -36,6 +38,8 @@
   let showEnvironmentDialog = false;
   let showDiacriticDialog = false;
   let showTafqitDialog = false;
+  let showDateDialog = false;
+  let showDictionaryDialog = false;
   let showWikiLinkDialog = false;
   let wikiLinkSearch = '';
   let tableRows = 3;
@@ -703,6 +707,25 @@
         <line x1="16" y1="3" x2="14" y2="21" />
       </svg>
     </button>
+    <button
+      class="tb"
+      title="التاريخ"
+      on:click={() => (showDateDialog = true)}
+    >
+      <svg
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        fill="none"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <rect x="3" y="4" width="18" height="18" rx="2" />
+        <line x1="3" y1="10" x2="21" y2="10" />
+        <line x1="8" y1="2" x2="8" y2="6" />
+        <line x1="16" y1="2" x2="16" y2="6" />
+      </svg>
+    </button>
   </div>
 
   {#if showQuranDialog}
@@ -734,6 +757,15 @@
       on:close={() => (showTafqitDialog = false)}
       {insertAtCursor}
     />
+  {/if}
+  {#if showDateDialog}
+    <DateDialog
+      on:close={() => (showDateDialog = false)}
+      {insertAtCursor}
+    />
+  {/if}
+  {#if showDictionaryDialog}
+    <DictionaryDialog on:close={() => (showDictionaryDialog = false)} {appendText} />
   {/if}
   {#if showWikiLinkDialog}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -850,6 +882,23 @@
         <polyline points="10 9 9 9 8 9" />
       </svg>
       <span>استشهاد</span>
+    </button>
+    <button class="tb-quran" on:click={() => (showDictionaryDialog = true)}>
+      <svg
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        fill="none"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M4 19.5A2.5 2.5 0 016.5 17H20" />
+        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
+        <circle cx="12" cy="10" r="3" />
+        <path d="M12 13v4" />
+        <path d="M10 17h4" />
+      </svg>
+      <span>قاموس</span>
     </button>
     <button class="tb-quran" on:click={() => insertAtCursor("\n```\n\n```\n")}>
       <svg

@@ -28,7 +28,10 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all"
+    "targets": "all",
+    "resources": {
+      "db/dicts.sqlite": "db/dicts.sqlite"
+    }
   },
   "plugins": {}
 }

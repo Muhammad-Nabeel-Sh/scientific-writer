@@ -1,3 +1,5 @@
+use rusqlite::Connection;
+use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::Manager;
@@ -124,6 +126,159 @@ fn greet(name: &str) -> String {
     format!("Hello, {name}!")
 }
 
+// ── Arabic dictionary lookup ──────────────────────────────────────────
+
+#[derive(Serialize)]
+struct DictEntry {
+    word: String,
+    meanings: String,
+    dict_name: String,
+    dict_ar: String,
+}
+
+const DICTS: &[(&str, &str, &str, &str)] = &[
+    // (table, arabic_name, english_name, group)
+    ("lisanularab", "لسان العرب", "Lisan al-Arab", "ar"),
+    ("mujamul_wasith", "الوسيط", "Al-Waseet", "ar"),
+    ("mujamul_shihah", "مختار الصحاح", "Mukhtar al-Sihah", "ar"),
+    ("maqayeesul_luga", "مقاييس اللغة", "Maqayis al-Lugha", "ar"),
+    ("mufradat_alfajul_quran", "مفردات القرآن", "Mufradat al-Quran", "ar"),
+    ("mujamul_ghoni", "الغني", "Al-Ghani", "ar"),
+    ("mujamul_muashiroh", "المعاصرة", "Al-Muashirah", "ar"),
+    ("mujamul_muhith", "المحيط", "Al-Muhit", "ar"),
+    ("hanswehr", "هانز", "Hans Wehr", "ar_en"),
+    ("lanelexcon", "لين", "Lane's Lexicon", "ar_en"),
+];
+
+fn dict_db_path(app: Option<&tauri::AppHandle>) -> PathBuf {
+    if let Some(app) = app {
+        if let Ok(resource_dir) = app.path().resource_dir() {
+            let path = resource_dir.join("db/dicts.sqlite");
+            if path.exists() {
+                return path;
+            }
+        }
+    }
+    // Development fallback: project_root() -> parent of src-tauri/
+    project_root().join("src-tauri/db/dicts.sqlite")
+}
+
+/// Search a word/root in a specific dictionary.
+fn search_dict(
+    conn: &Connection,
+    query: &str,
+    dict_table: &str,
+    search_by_root: bool,
+) -> Result<Vec<DictEntry>, String> {
+    let (col, extra) = match (dict_table, search_by_root) {
+        ("mujamul_ghoni", true) => ("root", ""),
+        ("hanswehr", true) => ("word", "AND is_root = 1"),
+        ("lanelexcon", true) => ("word", "AND is_root = 1"),
+        (_, true) => ("word", ""), // for lisan, maqayees, mufradat, word IS root
+        (_, false) => ("word", ""),
+    };
+    let sql = format!(
+        "SELECT word, meanings FROM \"{}\" WHERE {} LIKE ?1 {} ORDER BY word LIMIT 30",
+        dict_table, col, extra
+    );
+    let pattern = format!("%{}%", query);
+    let mut stmt = conn.prepare(&sql).map_err(|e| format!("prepare: {}", e))?;
+    let rows = stmt
+        .query_map([&pattern], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })
+        .map_err(|e| format!("query: {}", e))?;
+
+    let mut results = Vec::new();
+    for row in rows {
+        let (word, meanings) = row.map_err(|e| format!("row: {}", e))?;
+        let (_, dict_ar, dict_en, _) = DICTS
+            .iter()
+            .find(|(t, _, _, _)| *t == dict_table)
+            .unwrap_or(&("", "", "", ""));
+        results.push(DictEntry {
+            word,
+            meanings,
+            dict_name: dict_en.to_string(),
+            dict_ar: dict_ar.to_string(),
+        });
+    }
+    Ok(results)
+}
+
+#[tauri::command]
+fn search_dictionary(
+    app: tauri::AppHandle,
+    query: String,
+    dict_table: Option<String>,
+    search_mode: Option<String>,   // "word" | "root", default "word"
+    dict_group: Option<String>,    // "all" | "ar" | "ar_en", default "all"
+) -> Result<Vec<DictEntry>, String> {
+    let db_path = dict_db_path(Some(&app));
+    let conn =
+        Connection::open(&db_path).map_err(|e| format!("open db {:?}: {}", db_path, e))?;
+
+    let search_by_root = search_mode.as_deref() == Some("root");
+
+    let dicts_iter: Box<dyn Iterator<Item = &(&str, &str, &str, &str)>> = match dict_table {
+        Some(table) => {
+            if !DICTS.iter().any(|(t, _, _, _)| *t == table) {
+                return Err(format!("unknown dictionary: {}", table));
+            }
+            Box::new(DICTS.iter().filter(move |(t, _, _, _)| *t == table))
+        }
+        None => {
+            let group = dict_group.as_deref().unwrap_or("all");
+            match group {
+                "ar" => Box::new(DICTS.iter().filter(|(_, _, _, g)| *g == "ar")),
+                "ar_en" => Box::new(DICTS.iter().filter(|(_, _, _, g)| *g == "ar_en")),
+                _ => Box::new(DICTS.iter()),
+            }
+        }
+    };
+
+    let mut all = Vec::new();
+    for (table, _, _, _) in dicts_iter {
+        let results = search_dict(&conn, &query, table, search_by_root)?;
+        all.extend(results);
+    }
+    all.sort_by(|a, b| a.word.cmp(&b.word));
+    all.truncate(60);
+    Ok(all)
+}
+
+#[tauri::command]
+fn debug_dictionary_path(app: tauri::AppHandle) -> Result<String, String> {
+    let resource_info = match app.path().resource_dir() {
+        Ok(dir) => {
+            let p = dir.join("db/dicts.sqlite");
+            format!("{:?} (exists: {})", p, p.exists())
+        }
+        Err(e) => format!("error: {}", e),
+    };
+    let dev_path = project_root().join("src-tauri/db/dicts.sqlite");
+    Ok(format!(
+        "resource: {}\ndev: {:?} (exists: {})",
+        resource_info,
+        dev_path,
+        dev_path.exists(),
+    ))
+}
+
+#[tauri::command]
+fn list_dictionaries() -> Vec<serde_json::Value> {
+    DICTS.iter()
+        .map(|(table, ar, en, group)| {
+            serde_json::json!({
+                "table": table,
+                "ar": ar,
+                "en": en,
+                "group": group,
+            })
+        })
+        .collect()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -142,6 +297,9 @@ pub fn run() {
             list_assets,
             get_hadith_books,
             read_hadith_book,
+            search_dictionary,
+            list_dictionaries,
+            debug_dictionary_path,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
