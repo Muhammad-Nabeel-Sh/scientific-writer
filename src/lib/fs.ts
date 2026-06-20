@@ -6,11 +6,28 @@ let HIERARCHY_FILE: string;
 
 export async function getWorkspaceDir(): Promise<string> {
   if (!WORKSPACE_DIR) {
-    WORKSPACE_DIR = await invoke<string>('get_workspace_dir');
+    const saved = localStorage.getItem('scientific_writer_workspace');
+    if (saved) {
+      WORKSPACE_DIR = saved;
+    } else {
+      WORKSPACE_DIR = await invoke<string>('get_workspace_dir');
+      localStorage.setItem('scientific_writer_workspace', WORKSPACE_DIR);
+    }
+    await invoke('create_dir', { path: WORKSPACE_DIR, recursive: true });
+    await invoke('create_dir', { path: `${WORKSPACE_DIR}/assets`, recursive: true });
     HIERARCHY_FILE = `${WORKSPACE_DIR}/hierarchy.json`;
   }
   return WORKSPACE_DIR;
 }
+
+export async function setWorkspaceDir(path: string): Promise<void> {
+  WORKSPACE_DIR = path;
+  HIERARCHY_FILE = `${WORKSPACE_DIR}/hierarchy.json`;
+  localStorage.setItem('scientific_writer_workspace', path);
+  await invoke('create_dir', { path, recursive: true });
+  await invoke('create_dir', { path: `${path}/assets`, recursive: true });
+}
+
 
 async function workspacePath(id: string): Promise<string> {
   const dir = await getWorkspaceDir();

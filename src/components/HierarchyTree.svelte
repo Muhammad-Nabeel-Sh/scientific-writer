@@ -2,11 +2,16 @@
   import { createEventDispatcher } from 'svelte';
   import { hierarchy, activeNoteId } from '$lib/stores';
   import type { TreeNode } from '$lib/stores';
+  import { invoke } from '@tauri-apps/api/core';
+  import { open } from '@tauri-apps/plugin-dialog';
   import { createId } from '$lib/utils';
-  import { saveHierarchy } from '$lib/fs';
+  import { saveHierarchy, getWorkspaceDir, setWorkspaceDir } from '$lib/fs';
   import TreeItem from './TreeItem.svelte';
   import NewProjectDialog from './NewProjectDialog.svelte';
   import SearchDialog from './SearchDialog.svelte';
+  import { noteContent, bibEntries, digitStyle, fontSettings, ligatureSettings } from '$lib/stores';
+  import { renderMarkdown } from '$lib/markdown';
+  import { renderWikiLinks } from '$lib/backlinks';
 
   const dispatch = createEventDispatcher<{ about: void }>();
 
@@ -82,6 +87,24 @@
     showSearch = true;
   }
 
+  async function openWorkspace() {
+    try {
+      const selected = await open({
+        directory: true,
+        multiple: false,
+        title: 'اختر مجلد مساحة العمل (المشروع)',
+      });
+      if (selected === null) return;
+      const path = Array.isArray(selected) ? selected[0] : selected;
+      if (path) {
+        await setWorkspaceDir(path);
+        location.reload();
+      }
+    } catch (e) {
+      console.error('[openWorkspace]', e);
+    }
+  }
+
   function moveNode(nodeId: string, targetId: string, position: 'before' | 'after' | 'inside') {
     const findParent = (list: TreeNode[], id: string): { list: TreeNode[]; idx: number } | null => {
       for (let i = 0; i < list.length; i++) {
@@ -109,6 +132,185 @@
     $hierarchy = [...$hierarchy];
     save();
   }
+  let showExportMenu = false;
+  let exportMenuEl: HTMLDivElement;
+
+  function toggleExportMenu(e: MouseEvent) {
+    e.stopPropagation();
+    showExportMenu = !showExportMenu;
+  }
+
+  function closeExportMenu() {
+    showExportMenu = false;
+  }
+
+  function clickOutside(node: HTMLElement) {
+    function handler(e: MouseEvent) {
+      if (!node.contains(e.target as Node)) {
+        closeExportMenu();
+      }
+    }
+    document.addEventListener('click', handler);
+    return {
+      destroy() { document.removeEventListener('click', handler); }
+    };
+  }
+
+  async function exportAs(name: string) {
+    try {
+      const { getExporter, listExporters } = await import('$lib/publishing');
+      const exporter = getExporter(name);
+      if (!exporter) { console.error('[export] not found:', name, 'available:', listExporters().map(e => e.name)); return; }
+
+      const { parseDocument } = await import('$lib/publishing/document');
+      const doc = parseDocument($noteContent || '', $bibEntries);
+      const result = await exporter.export(doc, $noteContent);
+
+      let blob: Blob;
+      if (result.content instanceof Uint8Array) {
+        blob = new Blob([result.content], { type: result.mime });
+      } else {
+        blob = result.mime.startsWith('text/') || !result.mime.includes('officedocument')
+          ? new Blob([result.content], { type: result.mime })
+          : new Blob([Uint8Array.from(atob(result.content as string), c => c.charCodeAt(0))], { type: result.mime });
+      }
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = (doc.meta.title || 'document') + '.' + result.extension;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch (err) {
+      console.error('[export] error:', name, err);
+    }
+  }
+
+  async function exportPdf() {
+    try {
+      let rendered = renderMarkdown($noteContent || '', $bibEntries, $digitStyle);
+      rendered = renderWikiLinks(rendered, $hierarchy);
+
+      const f = $fontSettings, ly = $ligatureSettings;
+      const fv = `"wght" ${f.weight}, "opsz" ${f.opticalSize}, "${f.family === 'Readex Pro' ? 'HEXP' : 'wdth'}" ${f.width}`;
+      const lp: string[] = [];
+      if (!ly.required) lp.push('"rlig" 0');
+      if (!ly.standard) lp.push('"liga" 0');
+      if (ly.discretionary) lp.push('"dlig" 1');
+      const ls = lp.join(', ');
+      const styleAttr = `font-family: ${f.family}, 'Amiri', 'Noto Sans Arabic', 'Readex Pro', serif; font-weight: ${f.weight}; font-size: ${f.fontSize}px; line-height: 1.8; font-variation-settings: ${fv}; font-feature-settings: ${ls || 'normal'};`;
+
+      const wsDir = await getWorkspaceDir();
+      if (wsDir) {
+        const matches = [...rendered.matchAll(/src="([^"]+)"/g)];
+        for (const m of matches) {
+          let srcPath = m[1];
+          if (srcPath.startsWith('http:') || srcPath.startsWith('https:') || srcPath.startsWith('data:')) continue;
+          try {
+            const absolutePath = srcPath.startsWith('/') || srcPath.match(/^[a-zA-Z]:\\/) 
+              ? srcPath 
+              : wsDir + '/' + srcPath;
+            const bytes = await invoke<number[]>('read_binary_file', { path: absolutePath });
+            const uint8 = Uint8Array.from(bytes);
+            const ext = srcPath.split('.').pop()?.toLowerCase();
+            const mime = ext === 'png' ? 'image/png' : ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : ext === 'gif' ? 'image/gif' : 'image/png';
+            const blob = new Blob([uint8], { type: mime });
+            const dataUrl = await new Promise<string>(resolve => {
+              const r = new FileReader();
+              r.onloadend = () => resolve(r.result as string);
+              r.readAsDataURL(blob);
+            });
+            rendered = rendered.replace(m[0], `src="${dataUrl}"`);
+          } catch (e) {
+            console.error('[exportPdf] image failed:', srcPath, e);
+          }
+        }
+      }
+
+      // Remove lazy loading so images load immediately for print
+      rendered = rendered.replace(/loading="lazy"/g, '');
+
+      let css = '';
+      for (const sheet of document.styleSheets) {
+        try { for (const rule of sheet.cssRules) css += rule.cssText + '\n'; }
+        catch { /* skip cross-origin */ }
+      }
+
+      let katexCss = '';
+      try {
+        const resp = await fetch('https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css');
+        if (resp.ok) {
+          katexCss = await resp.text();
+          katexCss = katexCss.replace(/url\(fonts\//g, 'url(https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/fonts/');
+        }
+      } catch (e) {
+        console.warn('Failed to fetch KaTeX CSS:', e);
+      }
+
+      const fontHref = 'https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Readex+Pro:wght@300;400;500;600;700&display=swap';
+
+      const html = `<!DOCTYPE html>
+<html dir="rtl">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="${fontHref}">
+<style>
+${katexCss}
+${css}
+.preview code { background: #f0f0f0 !important; }
+.preview pre { background: #f5f5f5 !important; }
+.preview .academic-block { background: #f8f9fa !important; }
+.preview blockquote { background: #f8f9fa !important; }
+.preview .arabic-poem { background: #fefcf5 !important; }
+.preview .classical-page { background: #fefcf5 !important; }
+html, body { overflow: visible !important; height: auto !important; background: #fff !important; color: #000 !important; padding: 2rem; direction: rtl; }
+.preview { margin: 0 auto; }
+.preview-header { display: none; }
+@page { margin: 2cm; }
+@media print { body { padding: 0; } }
+</style>
+</head>
+<body>
+<div class="preview" style="${styleAttr}">${rendered}</div>
+</body>
+</html>`;
+
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'absolute';
+      iframe.style.top = '-9999px';
+      iframe.style.left = '-9999px';
+      iframe.style.width = '100%';
+      iframe.style.height = '100%';
+      iframe.style.zIndex = '-1';
+      document.body.appendChild(iframe);
+      iframe.contentDocument?.open();
+      iframe.contentDocument?.write(html);
+      iframe.contentDocument?.close();
+
+      const doc = iframe.contentDocument;
+      if (doc) {
+        const imgs = Array.from(doc.images);
+        Promise.all(imgs.map(img => {
+          if (img.complete) return Promise.resolve();
+          return new Promise(r => { img.onload = r; img.onerror = r; });
+        })).then(() => {
+          setTimeout(() => {
+            iframe.contentWindow?.print();
+            setTimeout(() => { if (iframe.parentNode) iframe.parentNode.removeChild(iframe); }, 15000);
+          }, 500);
+        });
+      } else {
+        setTimeout(() => {
+          iframe.contentWindow?.print();
+          setTimeout(() => { if (iframe.parentNode) iframe.parentNode.removeChild(iframe); }, 15000);
+        }, 1000);
+      }
+    } catch (err) {
+      console.error('[exportPdf] error:', err);
+    }
+  }
 </script>
 
 <div class="tree-container tree-scroll">
@@ -122,12 +324,31 @@
     <button class="tree-action-btn search-btn" title="بحث" on:click={openSearch}>
       <svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
     </button>
-    <button class="tree-action-btn project-btn" title="مشروع جديد" on:click={openNewProject}>
+    <button class="tree-action-btn project-btn" title="فتح مساحة عمل" on:click={openWorkspace}>
+      <svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2z" /></svg>
+    </button>
+    <button class="tree-action-btn" title="مشروع جديد" on:click={openNewProject}>
       <svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" /><polyline points="20 12 20 22 4 22 4 12" /><polyline points="12 2 12 8 20 8 12 2" /><line x1="8" y1="16" x2="16" y2="16" /></svg>
     </button>
     <button class="tree-action-btn" title="حول" on:click={() => dispatch('about')}>
       <svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
     </button>
+    <div class="export-wrapper" bind:this={exportMenuEl} use:clickOutside>
+      <button class="tree-action-btn" title="تصدير" on:click|stopPropagation={toggleExportMenu}>
+        <svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+      </button>
+      {#if showExportMenu}
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div class="export-dropdown" on:click|stopPropagation>
+          <button class="export-item" on:click={() => { closeExportMenu(); exportAs('docx'); }}>DOCX</button>
+          <button class="export-item" on:click={() => { closeExportMenu(); exportAs('markdown'); }}>MD</button>
+          <button class="export-item" on:click={() => { closeExportMenu(); exportAs('latex'); }}>LaTeX</button>
+          <button class="export-item" on:click={() => { closeExportMenu(); exportAs('typst'); }}>Typst</button>
+          <button class="export-item" on:click={() => { closeExportMenu(); exportPdf(); }}>PDF</button>
+        </div>
+      {/if}
+    </div>
   </div>
   {#each nodes as node (node.id)}
     <TreeItem {node} {selectNote} {renameNode} {deleteNode} {addNote} {moveNode} />
@@ -154,4 +375,18 @@
   .search-btn { margin-inline-end: auto; }
   .project-btn { margin-inline-start: auto; }
   .empty-msg { color: var(--fg-muted); font-size: 0.9rem; padding: 1rem; text-align: center; }
+  .export-wrapper { position: relative; }
+  .export-dropdown {
+    position: absolute; top: 100%; left: 0; z-index: 50;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+    padding: 4px; display: flex; flex-direction: column; gap: 2px;
+    min-width: 90px; box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  }
+  .export-item {
+    background: none; border: none; color: var(--fg); cursor: pointer;
+    padding: 6px 12px; border-radius: 4px; text-align: start;
+    font-size: 0.85rem; font-family: inherit;
+    transition: background 0.15s;
+  }
+  .export-item:hover { background: var(--bg-hover); }
 </style>

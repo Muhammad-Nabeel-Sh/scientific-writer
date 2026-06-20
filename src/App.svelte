@@ -3,6 +3,11 @@
   import { initWorkspace, readNote, ensureBibliography } from "$lib/fs";
   import { parseBibTeX } from "$lib/bibliography";
   import { buildBacklinksIndex, updateBacklinksForNote } from "$lib/backlinks";
+  import { registerExporter } from "$lib/publishing";
+  import { DocxExporter } from "$lib/publishing/docx-exporter";
+  import { MarkdownExporter } from "$lib/publishing/markdown-exporter";
+  import { LatexExporter } from "$lib/publishing/latex-exporter";
+  import { TypstExporter } from "$lib/publishing/typst-exporter";
   import HierarchyTree from "./components/HierarchyTree.svelte";
   import Outline from "./components/Outline.svelte";
   import BacklinksPanel from "./components/BacklinksPanel.svelte";
@@ -32,6 +37,10 @@
     const bibContent = await ensureBibliography();
     $bibEntries = parseBibTeX(bibContent);
     $backlinksIndex = await buildBacklinksIndex(data);
+    registerExporter(new DocxExporter());
+    registerExporter(new MarkdownExporter());
+    registerExporter(new LatexExporter());
+    registerExporter(new TypstExporter());
   }
 
   $: if ($activeNoteId && $activeNoteId !== '__references__') {

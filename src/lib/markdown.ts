@@ -61,6 +61,7 @@ const md = new MarkdownIt({
 }).use(katex, {
   throwOnError: false,
   displayMode: true,
+  strict: "ignore",
 }).use(academicBlocksPlugin).use(footnotePlugin).use(classicalBookPlugin);
 
 export interface EquationInfo {
@@ -350,7 +351,16 @@ export function renderMarkdown(text: string, bibEntries?: BibEntry[], digitStyle
     processed = renderInterlinearGloss(processed);
 
     resetBlockState();
+    
+    // Suppress KaTeX character metrics warnings in the console
+    const originalWarn = console.warn;
+    console.warn = (...args) => {
+      if (typeof args[0] === 'string' && args[0].includes('character metrics')) return;
+      originalWarn(...args);
+    };
     const html = md.render(processed, {});
+    console.warn = originalWarn;
+
     let htmlOut = html.replace(
       /<(p|h[1-6]|blockquote|pre|th|td|li)\b/gi,
       '<$1 dir="auto"',

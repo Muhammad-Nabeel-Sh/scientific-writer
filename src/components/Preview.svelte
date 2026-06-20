@@ -12,6 +12,7 @@
   import { renderWikiLinks } from "$lib/backlinks";
   import TypographySettings from "./TypographySettings.svelte";
 
+
   $: content = $noteContent;
   $: entries = $bibEntries;
 
@@ -95,6 +96,7 @@
       handlePreviewClick(e as unknown as MouseEvent);
     }
   }
+
 </script>
 
 <div class="preview-header">
@@ -108,6 +110,7 @@
     </svg>
     طباعة
   </button>
+
 </div>
 <div bind:this={previewEl} class="preview" dir="auto" style={previewStyle} on:click={handlePreviewClick} on:keydown={handlePreviewKeydown} role="none">{@html html}</div>
 

@@ -8,7 +8,7 @@ import type { DocumentModel } from './ast';
  */
 
 export interface ExportResult {
-  content: string;
+  content: string | Uint8Array;
   /** Suggested file extension without dot (e.g. 'html', 'pdf', 'tex') */
   extension: string;
   /** MIME type for the output (e.g. 'text/html', 'application/pdf') */
@@ -26,7 +26,7 @@ export interface Exporter {
    * Export a DocumentModel to the target format.
    * Returns the exported content and metadata.
    */
-  export(model: DocumentModel): ExportResult | Promise<ExportResult>;
+  export(model: DocumentModel, rawMarkdown?: string): ExportResult | Promise<ExportResult>;
 }
 
 /* ── Exporter registry (pluggable) ── */

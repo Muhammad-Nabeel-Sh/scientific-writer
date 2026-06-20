@@ -60,6 +60,11 @@ fn read_text_file(path: String) -> Result<String, String> {
 }
 
 #[tauri::command]
+fn read_binary_file(path: String) -> Result<Vec<u8>, String> {
+    fs::read(&path).map_err(|e| format!("read binary: {}", e))
+}
+
+#[tauri::command]
 fn write_text_file(path: String, content: String) -> Result<(), String> {
     if let Some(parent) = Path::new(&path).parent() {
         fs::create_dir_all(parent).map_err(|e| format!("mkdir parent: {}", e))?;
@@ -92,6 +97,66 @@ fn file_exists(path: String) -> bool {
 }
 
 #[tauri::command]
+fn export_pandoc(app: tauri::AppHandle, workspace: String, markdown: String, format: String) -> Result<Vec<u8>, String> {
+    use std::process::Command;
+
+    // Look for a bundled pandoc next to the app executable first,
+    // then fall back to system PATH.
+    fn find_pandoc(app: &tauri::AppHandle) -> String {
+        // Check next to the running executable
+        if let Ok(exe) = std::env::current_exe() {
+            if let Some(dir) = exe.parent() {
+                let bundled = dir.join("pandoc.exe");
+                if bundled.exists() {
+                    return bundled.to_string_lossy().to_string();
+                }
+            }
+        }
+        // Check Tauri resource dir (for production builds)
+        if let Ok(res_dir) = app.path().resource_dir() {
+            let bundled = res_dir.join("pandoc.exe");
+            if bundled.exists() {
+                return bundled.to_string_lossy().to_string();
+            }
+        }
+        // Fall back to system PATH
+        "pandoc".to_string()
+    }
+
+    let pandoc_bin = find_pandoc(&app);
+
+    let ws_path = Path::new(&workspace);
+    let in_path = ws_path.join(".temp_export.md");
+    let out_path = ws_path.join(format!(".temp_export.{}", format));
+
+    fs::write(&in_path, &markdown).map_err(|e| format!("write md error: {}", e))?;
+
+    let output = Command::new(&pandoc_bin)
+        .current_dir(&workspace)
+        .arg(&in_path)
+        .arg("-o")
+        .arg(&out_path)
+        .output()
+        .map_err(|e| format!(
+            "Pandoc not found. Please install Pandoc (https://pandoc.org/installing.html) or place pandoc.exe next to the application. Error: {}",
+            e
+        ))?;
+
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr);
+        let _ = fs::remove_file(&in_path);
+        return Err(format!("Pandoc error: {}", err));
+    }
+
+    let bytes = fs::read(&out_path).map_err(|e| format!("read output error: {}", e))?;
+
+    let _ = fs::remove_file(&in_path);
+    let _ = fs::remove_file(&out_path);
+
+    Ok(bytes)
+}
+
+#[tauri::command]
 fn copy_file(src: String, dest: String) -> Result<(), String> {
     let data = fs::read(&src).map_err(|e| format!("read src: {}", e))?;
     if let Some(parent) = Path::new(&dest).parent() {
@@ -99,6 +164,8 @@ fn copy_file(src: String, dest: String) -> Result<(), String> {
     }
     fs::write(&dest, &data).map_err(|e| format!("write dest: {}", e))
 }
+
+// ── Hadith ────────────────────────────────────────────────────────────
 
 const HADITH_BOOKS: &[&str] = &[
     "abudawud", "ahmed", "bukhari", "darimi", "ibnmajah", "malik", "muslim", "nasai", "tirmidhi",
@@ -282,16 +349,19 @@ fn list_dictionaries() -> Vec<serde_json::Value> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             greet,
             get_workspace_dir,
             read_text_file,
+            read_binary_file,
             write_text_file,
             create_dir,
             remove_file,
             rename_file,
             file_exists,
+            export_pandoc,
             copy_file,
             copy_file_to_assets,
             list_assets,
