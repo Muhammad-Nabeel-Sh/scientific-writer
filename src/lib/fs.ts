@@ -20,6 +20,11 @@ export async function getWorkspaceDir(): Promise<string> {
   return WORKSPACE_DIR;
 }
 
+export function clearWorkspaceCache() {
+  WORKSPACE_DIR = '';
+  HIERARCHY_FILE = '';
+}
+
 export async function setWorkspaceDir(path: string): Promise<void> {
   WORKSPACE_DIR = path;
   HIERARCHY_FILE = `${WORKSPACE_DIR}/hierarchy.json`;
@@ -34,8 +39,68 @@ async function workspacePath(id: string): Promise<string> {
   return `${dir}/${id}.md`;
 }
 
-export async function initWorkspace(): Promise<TreeNode[]> {
+/* ── Auto-recovery backups ── */
+
+async function getBackupDir(): Promise<string> {
   const dir = await getWorkspaceDir();
+  const backupDir = `${dir}/.backups`;
+  await invoke('create_dir', { path: backupDir, recursive: true });
+  return backupDir;
+}
+
+export async function backupNote(id: string, content: string): Promise<void> {
+  if (!content.trim()) return;
+  const backupDir = await getBackupDir();
+  const ts = Date.now();
+  const path = `${backupDir}/${id}_${ts}.md.bak`;
+  await invoke('write_text_file', { path, content });
+  // Keep only last 20 backups per note
+  try {
+    const backupDirPath = await getBackupDir();
+    const list = await invoke<string[]>('list_assets', { workspace: backupDirPath });
+    const noteBackups = list.filter(f => f.startsWith(id + '_')).sort();
+    while (noteBackups.length > 20) {
+      const old = noteBackups.shift()!;
+      try { await invoke('remove_file', { path: `${backupDirPath}/${old}` }); } catch { /* ignore */ }
+    }
+  } catch { /* ignore */ }
+}
+
+export async function listBackups(noteId: string): Promise<string[]> {
+  const backupDir = await getBackupDir();
+  const list = await invoke<string[]>('list_assets', { workspace: backupDir });
+  return list.filter(f => f.startsWith(noteId + '_')).sort().reverse();
+}
+
+export async function restoreBackup(noteId: string, backupFile: string): Promise<string> {
+  const backupDir = await getBackupDir();
+  return invoke<string>('read_text_file', { path: `${backupDir}/${backupFile}` });
+}
+
+/* ── Import external files ── */
+
+export async function importExternalFile(filePath: string): Promise<string | null> {
+  try {
+    const content = await invoke<string>('read_text_file', { path: filePath });
+    return content;
+  } catch {
+    return null;
+  }
+}
+
+export async function deleteAssetFile(filename: string): Promise<void> {
+  const dir = await getWorkspaceDir();
+  await invoke('remove_file', { path: `${dir}/assets/${filename}` });
+}
+
+export async function initWorkspace(workspacePath?: string): Promise<TreeNode[]> {
+  let dir: string;
+  if (workspacePath) {
+    dir = workspacePath;
+    HIERARCHY_FILE = `${dir}/hierarchy.json`;
+  } else {
+    dir = await getWorkspaceDir();
+  }
   try {
     const content = await invoke<string>('read_text_file', { path: HIERARCHY_FILE });
     return JSON.parse(content) as TreeNode[];

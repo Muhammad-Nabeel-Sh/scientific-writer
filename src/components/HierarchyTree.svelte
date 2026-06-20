@@ -1,11 +1,12 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, onMount } from 'svelte';
   import { hierarchy, activeNoteId } from '$lib/stores';
   import type { TreeNode } from '$lib/stores';
   import { invoke } from '@tauri-apps/api/core';
   import { open } from '@tauri-apps/plugin-dialog';
   import { createId } from '$lib/utils';
-  import { saveHierarchy, getWorkspaceDir, setWorkspaceDir } from '$lib/fs';
+  import { saveHierarchy, getWorkspaceDir, setWorkspaceDir, clearWorkspaceCache } from '$lib/fs';
+  import { pushHierarchySnapshot, recentWorkspaces, addRecentWorkspace, undoHierarchy, loadRecentWorkspaces, exportStatus } from '$lib/stores';
   import TreeItem from './TreeItem.svelte';
   import NewProjectDialog from './NewProjectDialog.svelte';
   import SearchDialog from './SearchDialog.svelte';
@@ -13,14 +14,22 @@
   import { renderMarkdown } from '$lib/markdown';
   import { renderWikiLinks } from '$lib/backlinks';
 
-  const dispatch = createEventDispatcher<{ about: void }>();
+  const dispatch = createEventDispatcher<{ about: void; undo: void }>();
 
   $: nodes = $hierarchy;
+  $: workspaces = $recentWorkspaces;
+
+  onMount(() => {
+    const handler = () => addNote();
+    window.addEventListener('add-note', handler);
+    return () => window.removeEventListener('add-note', handler);
+  });
   let showNewProject = false;
   let showSearch = false;
 
   function save() {
     saveHierarchy([...$hierarchy]);
+    pushHierarchySnapshot([...$hierarchy]);
   }
 
   function selectNote(id: string) {
@@ -97,12 +106,19 @@
       if (selected === null) return;
       const path = Array.isArray(selected) ? selected[0] : selected;
       if (path) {
+        addRecentWorkspace(path);
         await setWorkspaceDir(path);
-        location.reload();
+        window.dispatchEvent(new CustomEvent('reinit-workspace', { detail: { path } }));
       }
     } catch (e) {
       console.error('[openWorkspace]', e);
     }
+  }
+
+  async function switchWorkspace(path: string) {
+    addRecentWorkspace(path);
+    await setWorkspaceDir(path);
+    window.dispatchEvent(new CustomEvent('reinit-workspace', { detail: { path } }));
   }
 
   function moveNode(nodeId: string, targetId: string, position: 'before' | 'after' | 'inside') {
@@ -157,10 +173,11 @@
   }
 
   async function exportAs(name: string) {
+    $exportStatus = { exporting: true, label: `جارٍ تصدير ${name}…` };
     try {
       const { getExporter, listExporters } = await import('$lib/publishing');
       const exporter = getExporter(name);
-      if (!exporter) { console.error('[export] not found:', name, 'available:', listExporters().map(e => e.name)); return; }
+      if (!exporter) { $exportStatus = { exporting: false, label: '', error: `غير معروف: ${name}` }; return; }
 
       const { parseDocument } = await import('$lib/publishing/document');
       const doc = parseDocument($noteContent || '', $bibEntries);
@@ -183,12 +200,16 @@
       a.click();
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 5000);
+      $exportStatus = { exporting: false, label: 'تم التصدير بنجاح' };
+      setTimeout(() => { $exportStatus = { exporting: false, label: '' }; }, 3000);
     } catch (err) {
       console.error('[export] error:', name, err);
+      $exportStatus = { exporting: false, label: '', error: String(err) };
     }
   }
 
   async function exportPdf() {
+    $exportStatus = { exporting: true, label: 'جارٍ تحضير PDF…' };
     try {
       let rendered = renderMarkdown($noteContent || '', $bibEntries, $digitStyle);
       rendered = renderWikiLinks(rendered, $hierarchy);
@@ -306,9 +327,12 @@ html, body { overflow: visible !important; height: auto !important; background: 
           iframe.contentWindow?.print();
           setTimeout(() => { if (iframe.parentNode) iframe.parentNode.removeChild(iframe); }, 15000);
         }, 1000);
+      $exportStatus = { exporting: false, label: 'تم تصدير PDF' };
+      setTimeout(() => { $exportStatus = { exporting: false, label: '' }; }, 3000);
       }
     } catch (err) {
       console.error('[exportPdf] error:', err);
+      $exportStatus = { exporting: false, label: '', error: String(err) };
     }
   }
 </script>
@@ -330,6 +354,9 @@ html, body { overflow: visible !important; height: auto !important; background: 
     <button class="tree-action-btn" title="مشروع جديد" on:click={openNewProject}>
       <svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" /><polyline points="20 12 20 22 4 22 4 12" /><polyline points="12 2 12 8 20 8 12 2" /><line x1="8" y1="16" x2="16" y2="16" /></svg>
     </button>
+    <button class="tree-action-btn" title="تراجع عن التعديل" on:click={() => { undoHierarchy(); dispatch('undo'); }}>
+      <svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10" /><path d="M3.51 15a9 9 0 102.13-9.36L1 10" /></svg>
+    </button>
     <button class="tree-action-btn" title="حول" on:click={() => dispatch('about')}>
       <svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
     </button>
@@ -350,6 +377,17 @@ html, body { overflow: visible !important; height: auto !important; background: 
       {/if}
     </div>
   </div>
+  {#if workspaces.length > 0}
+    <div class="workspace-list">
+      <span class="workspace-label">مساحات العمل الأخيرة</span>
+      {#each workspaces as ws}
+        <button class="workspace-item" on:click={() => switchWorkspace(ws.path)} title={ws.path}>
+          <svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" /></svg>
+          <span>{ws.label}</span>
+        </button>
+      {/each}
+    </div>
+  {/if}
   {#each nodes as node (node.id)}
     <TreeItem {node} {selectNote} {renameNode} {deleteNode} {addNote} {moveNode} />
   {:else}
@@ -375,6 +413,23 @@ html, body { overflow: visible !important; height: auto !important; background: 
   .search-btn { margin-inline-end: auto; }
   .project-btn { margin-inline-start: auto; }
   .empty-msg { color: var(--fg-muted); font-size: 0.9rem; padding: 1rem; text-align: center; }
+  .workspace-list {
+    display: flex; flex-direction: column; gap: 2px;
+    padding: 6px 0; border-top: 1px solid var(--border); margin-top: 8px;
+  }
+  .workspace-label {
+    font-size: 0.7rem; color: var(--fg-muted); padding: 2px 10px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .workspace-item {
+    display: flex; align-items: center; gap: 6px;
+    background: none; border: none; color: var(--fg-muted);
+    cursor: pointer; padding: 5px 10px; border-radius: 4px;
+    font-size: 0.8rem; font-family: inherit;
+    transition: background 0.15s, color 0.15s; text-align: start;
+  }
+  .workspace-item:hover { background: var(--bg-hover); color: var(--fg); }
+  .workspace-item svg { width: 14px; height: 14px; flex-shrink: 0; }
   .export-wrapper { position: relative; }
   .export-dropdown {
     position: absolute; top: 100%; left: 0; z-index: 50;

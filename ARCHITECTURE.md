@@ -8,9 +8,12 @@
 | Frontend    | SvelteKit 2 + @sveltejs/adapter-static (SPA, SSR disabled)         |
 | Language    | TypeScript (frontend), Rust (backend)                               |
 | Bundler     | Vite 6, dev server on port 1420                                     |
-| Markdown    | markdown-it v14 + @traptitech/markdown-it-katex                     |
+| Markdown    | markdown-it v14 + @traptitech/markdown-it-katex + markdown-it-container + markdown-it-footnote |
 | Syntax hl   | highlight.js                                                       |
-| Search      | fuse.js (fuzzy hadith search)                                       |
+| Search      | fuse.js (fuzzy hadith search) + custom full-text search engine     |
+| Hijri date  | @umalqura/core                                                     |
+| Dictionary  | rusqlite with 11 embedded Arabic lexicons                          |
+| Export      | docx (via Pandoc), LaTeX, Markdown, Typst (via AST-based exporters)|
 
 ---
 
@@ -35,21 +38,26 @@ scientific-writer/
 │   │   └── +page.svelte      # Mounts <App />
 │   │
 │   ├── components/
-│   │   ├── Editor.svelte     # Textarea editor + toolbar + bottom bar + dialogs
-│   │   ├── Preview.svelte    # Renders markdown→HTML + wiki link click navigation
-│   │   ├── HierarchyTree.svelte  # Note tree with add/rename/delete/drag
-│   │   ├── TreeItem.svelte   # Recursive tree node component
-│   │   ├── Outline.svelte    # Collapsible heading outline in sidebar
-│   │   ├── BacklinksPanel.svelte  # Collapsible incoming wiki links panel
-│   │   ├── Stats.svelte      # Collapsible statistics panel in sidebar
+│   │   ├── Editor.svelte        # Textarea editor + toolbar + bottom bar + dialogs
+│   │   ├── Preview.svelte       # Renders markdown→HTML + wiki link click navigation
+│   │   ├── HierarchyTree.svelte # Note tree with add/rename/delete/drag
+│   │   ├── TreeItem.svelte      # Recursive tree node component
+│   │   ├── Outline.svelte       # Collapsible heading outline in sidebar
+│   │   ├── BacklinksPanel.svelte # Collapsible incoming wiki links panel
+│   │   ├── Stats.svelte         # Collapsible statistics panel in sidebar
+│   │   ├── SplashScreen.svelte  # Startup splash with credits & tech info
+│   │   ├── SearchDialog.svelte  # Full-text search across all notes (keyword + vector)
 │   │   ├── CitationDialog.svelte # Citation picker — search bib entries, insert [@key]
-│   │   ├── QuranDialog.svelte    # Quran search & insert dialog
-│   │   ├── HadithDialog.svelte   # Hadith search & insert dialog
+│   │   ├── QuranDialog.svelte   # Quran search & insert dialog
+│   │   ├── HadithDialog.svelte  # Hadith search & insert dialog
 │   │   ├── EquationDialog.svelte # LaTeX equation editor & insert
 │   │   ├── EnvironmentDialog.svelte # Academic block environment inserter
-│   │   ├── KatexGallery.svelte   # KaTeX symbol reference gallery
-│   │   ├── NewProjectDialog.svelte  # New project/template creator
-│   │   └── TypographySettings.svelte # Font & ligature settings panel
+│   │   ├── DiacriticDialog.svelte # Diacritic (tashkeel) character palette
+│   │   ├── DictionaryDialog.svelte # Arabic dictionary lookup (11 lexicons)
+│   │   ├── TafqitDialog.svelte  # Number-to-Arabic-words (تفقيط) converter
+│   │   ├── DateDialog.svelte    # Hijri/Gregorian date picker & format inserter
+│   │   ├── KatexGallery.svelte  # KaTeX symbol reference gallery
+│   │   └── NewProjectDialog.svelte # New project/template creator
 │   │
 │   └── lib/
 │       ├── stores.ts         # Svelte writable/derived stores (state)
@@ -60,14 +68,28 @@ scientific-writer/
 │       ├── citation-arabic.ts # Arabic CSL strings, manuscript & Ṭabaqāt formatters
 │       ├── backlinks.ts      # Wiki link extraction, backlinks index builder & renderer
 │       ├── stats.ts          # NoteStats interface + computeStats
-│       ├── utils.ts          # createId(), debounce()
+│       ├── utils.ts          # createId() (crypto.randomUUID), debounce()
 │       ├── hadith.ts         # Hadith data loading, normalization, fuzzy search
 │       ├── quran.ts          # Quran data search, range selection, formatting
 │       ├── quran.json        # Quranic verses (embedded data)
 │       ├── kashida.ts        # Kashida (tatweel) justification engine
 │       ├── blocks.ts         # Academic block plugin (::: theorem, proof, etc.)
 │       ├── footnotes.ts      # Footnote rendering & endnote mode toggle
-│       ├── search.ts         # Full-text search index builder & keyword/vector search
+│       ├── search.ts         # Full-text search index builder & keyword/vector/hybrid search
+│       ├── hijri.ts          # Hijri/Gregorian calendar conversion (@umalqura/core)
+│       ├── tafqit.ts         # Arabic number-to-words (تفقيط) conversion
+│       ├── declarations.d.ts # Ambient type declarations
+│       │
+│       ├── templates/        # Project template system
+│       │   ├── index.ts      # Template registry (registerTemplate, getTemplate, getAllTemplates)
+│       │   ├── types.ts      # Template interface & TemplateId type
+│       │   ├── thesis.ts     # Thesis template (4 folders, 10+ notes)
+│       │   ├── article.ts    # Research article template
+│       │   ├── book.ts       # Academic book template
+│       │   ├── lecture.ts    # Lecture notes template
+│       │   └── classical-book.ts # Classical Islamic book template (matn/sharh/hashiyah)
+│       │
+│       ├── typography/       # Font/typography utilities (empty, future use)
 │       │
 │       └── publishing/       # Publishing abstraction layer
 │           ├── index.ts      # Barrel exports
@@ -103,19 +125,24 @@ scientific-writer/
 ```
 +page.svelte
   └── App.svelte
+        ├── SplashScreen  (conditional, auto-dismiss 5s)
         ├── [left panel] HierarchyTree
         │     └── TreeItem (recursive)
         ├── [left panel] Outline
         ├── [left panel] BacklinksPanel
         ├── [left panel] Stats
         ├── [center] Editor
-        │     ├── CitationDialog   (conditional overlay)
-        │     ├── QuranDialog      (conditional overlay)
-        │     ├── HadithDialog     (conditional overlay)
-        │     ├── EquationDialog   (conditional overlay)
-        │     ├── EnvironmentDialog (conditional overlay)
-        │     ├── wiki link dialog (inline conditional)
-        │     └── table dialog     (inline conditional)
+        │     ├── QuranDialog         (conditional overlay)
+        │     ├── HadithDialog        (conditional overlay)
+        │     ├── CitationDialog      (conditional overlay)
+        │     ├── EquationDialog      (conditional overlay)
+        │     ├── EnvironmentDialog   (conditional overlay)
+        │     ├── DiacriticDialog     (draggable floating palette)
+        │     ├── DictionaryDialog    (conditional overlay)
+        │     ├── TafqitDialog        (conditional overlay)
+        │     ├── DateDialog          (conditional overlay)
+        │     ├── wiki link dialog    (inline conditional)
+        │     └── table dialog        (inline conditional)
         └── [right panel] Preview
 ```
 
@@ -237,21 +264,25 @@ BacklinksPanel.svelte  ← renders clickable list
 
 Defined in `src-tauri/src/lib.rs`, invoked via `@tauri-apps/api/core` `invoke()`.
 
-| Command              | Signature                                        | Purpose                                    |
-|----------------------|--------------------------------------------------|--------------------------------------------|
-| `greet`              | `(name: &str) -> String`                         | Placeholder                                |
-| `get_workspace_dir`  | `(app) -> Result<String>`                        | Creates & returns `{appData}/scientific-writer/workspace/` |
-| `read_text_file`     | `(path: String) -> Result<String>`               | Reads file content as string               |
-| `write_text_file`    | `(path: String, content: String) -> Result<()>`  | Writes string to file (creates parents)    |
-| `create_dir`         | `(path: String, recursive: bool) -> Result<()>`  | Creates directory                          |
-| `remove_file`        | `(path: String) -> Result<()>`                   | Deletes file                               |
-| `rename_file`        | `(old_path, new_path: String) -> Result<()>`     | Renames file                               |
-| `file_exists`        | `(path: String) -> bool`                         | Checks if path exists                      |
-| `copy_file`          | `(src, dest: String) -> Result<()>`              | Copies file                                |
-| `copy_file_to_assets`| `(workspace, file_name: String, data: Vec<u8>) -> Result<String>` | Saves binary to `assets/`, returns relative path |
-| `list_assets`        | `(workspace: String) -> Result<Vec<String>>`     | Lists files in `assets/` directory         |
-| `get_hadith_books`   | `() -> Vec<&'static str>`                        | Returns 9 book keys                        |
-| `read_hadith_book`   | `(book: String) -> Result<String>`               | Reads book JSON from `docs/hadith-json-.../` |
+| Command                   | Signature                                        | Purpose                                    |
+|---------------------------|--------------------------------------------------|--------------------------------------------|
+| `get_workspace_dir`       | `(app) -> Result<String>`                        | Creates & returns `{appData}/scientific-writer/workspace/` |
+| `read_text_file`          | `(path: String) -> Result<String>`               | Reads file content as string               |
+| `read_binary_file`        | `(path: String) -> Result<Vec<u8>>`              | Reads file content as binary bytes         |
+| `write_text_file`         | `(path: String, content: String) -> Result<()>`  | Writes string to file (creates parents)    |
+| `create_dir`              | `(path: String, recursive: bool) -> Result<()>`  | Creates directory                          |
+| `remove_file`             | `(path: String) -> Result<()>`                   | Deletes file                               |
+| `rename_file`             | `(old_path, new_path: String) -> Result<()>`     | Renames file                               |
+| `file_exists`             | `(path: String) -> bool`                         | Checks if path exists                      |
+| `copy_file`               | `(src, dest: String) -> Result<()>`              | Copies file                                |
+| `copy_file_to_assets`     | `(workspace, file_name: String, data: Vec<u8>) -> Result<String>` | Saves binary to `assets/`, returns relative path |
+| `list_assets`             | `(workspace: String) -> Result<Vec<String>>`     | Lists files in `assets/` directory         |
+| `get_hadith_books`        | `() -> Vec<&'static str>`                        | Returns 9 book keys                        |
+| `read_hadith_book`        | `(book: String) -> Result<String>`               | Reads book JSON from `docs/hadith-json-.../` |
+| `export_pandoc`           | `(app, workspace, markdown, format) -> Result<Vec<u8>>` | Converts markdown via Pandoc (docx, etc.) |
+| `search_dictionary`       | `(app, query, dict_table?, search_mode?, dict_group?) -> Result<Vec<DictEntry>>` | Search Arabic lexicons (word/root) |
+| `list_dictionaries`       | `() -> Vec<serde_json::Value>`                   | Lists all 10 available dictionary tables   |
+| `debug_dictionary_path`   | `(app) -> Result<String>`                        | Returns dictionary DB path for debugging   |
 
 ### Backend location
 
@@ -387,11 +418,10 @@ Markdown text
 DocumentModel (AST)  ←─ parseDocument() / createDocument()
     │                     src/lib/publishing/document.ts
     │
-    ├──► HtmlExporter     (future)
-    ├──► PdfExporter      (future)
-    ├──► DocxExporter     (future)
-    ├──► LatexExporter    (future)
-    └──► TypstExporter    (future)
+    ├──► DocxExporter     (via Pandoc, Rust command `export_pandoc`)
+    ├──► MarkdownExporter (YAML frontmatter + AST→Markdown)
+    ├──► LatexExporter    (XeLaTeX/polyglossia for Arabic, pdfLaTeX for LTR)
+    └──► TypstExporter    (Typst markup with RTL support)
          │
          ▼
     ExportResult { content, extension, mime }
@@ -495,19 +525,26 @@ interface ExportResult {
 
 Registration is open-ended — any code can call `registerExporter()` with a custom `Exporter` object. This makes future exporters pluggable without modifying the core.
 
-### Pipeline integration (future)
+### Current exporters
 
-The existing `renderMarkdown()` → HTML path continues unchanged. The publishing layer sits alongside it:
+| Exporter | File | Method | Notes |
+|----------|------|--------|-------|
+| **DOCX** | `docx-exporter.ts` | Calls `export_pandoc` Rust command | Requires Pandoc installed or bundled `pandoc.exe` next to app |
+| **Markdown** | `markdown-exporter.ts` | Pure AST→Markdown render | Adds YAML frontmatter |
+| **LaTeX** | `latex-exporter.ts` | Pure AST→LaTeX render | Arabic: XeLaTeX+polyglossia; English: pdfLaTeX |
+| **Typst** | `typst-exporter.ts` | Pure AST→Typst render | RTL-aware with `#set text(dir: rtl)` |
+
+All exporters are registered in `App.svelte`'s `init()` via `registerExporter(...)`. A future UI would offer an "Export" menu listing all registered exporters, allowing the user to pick a format.
+
+### Pipeline integration
 
 ```
-             ┌─► renderMarkdown() → HTML (current)
+             ┌─► renderMarkdown() → HTML (current preview)
              │
 Markdown ────┤
              │
              └─► createDocument() → DocumentModel ──► [registered exporters]
 ```
-
-A future UI would offer an "Export" menu listing all registered exporters (`listExporters()`), allowing the user to pick a format and trigger `exportDocument(model, name)`.
 
 ### Manuscript Compiler (`src/lib/publishing/manuscript.ts`)
 
@@ -662,13 +699,21 @@ workspace/
 3. If not found: creates default hierarchy (2 folders, 5 notes with sample content including wiki link examples)
 4. Writes default files via `write_text_file`
 5. Returns `TreeNode[]` → set into `hierarchy` store
-6. `readBibliography()` reads `references.bib` from workspace (returns empty string if missing)
-7. If content found: `parseBibTeX()` → `BibEntry[]` → set into `bibEntries` store
+6. `ensureBibliography()` reads `references.bib` from workspace;
+   - If missing: writes a template `.bib` file with commented-out examples
+7. `parseBibTeX()` → `BibEntry[]` → set into `bibEntries` store
+8. `buildBacklinksIndex()` scans all notes → `backlinksIndex` store
 
 ### Save flow
 - Auto-save: 500ms debounce on `noteContent` change → `writeNote(id, content)`
 - Manual: Ctrl+S → same `writeNote` call
 - Hierarchy changes (rename, delete, add, drag) → `saveHierarchy(nodes)` writes `hierarchy.json`
+- References editor (`__references__` virtual note) → saves to `references.bib` via `writeBibliography()`
+
+### References editor
+- A virtual note with ID `__references__` displays the raw `references.bib` file in the editor
+- Accessed via a "المراجع" button in the left sidebar (below HierarchyTree)
+- Edits are saved back to `references.bib` and re-parsed into `bibEntries` store
 
 ### Note file naming
 - Files stored as `{id}.md` where `id` is from `createId()` (timestamp + counter)
@@ -830,11 +875,11 @@ Preview.svelte     ← updates citedKeys / missingCitationKeys stores
 | Ctrl+Z | Undo |
 | Ctrl+Y | Redo |
 | Ctrl+S | Save |
-| Ctrl+B | Bold |
-| Ctrl+I | Italic |
-| Ctrl+T | Insert table |
-| Ctrl+L | Insert link |
-| Ctrl+Q | Blockquote |
+| Ctrl+B | Bold (`**text**`) |
+| Ctrl+I | Italic (`*text*`) |
+| Ctrl+T | Insert table dialog |
+| Ctrl+L | Insert link or wrap selection |
+| Ctrl+Q | Blockquote (`> `) |
 | Ctrl+1–6 | Heading H1–H6 |
 
 ---

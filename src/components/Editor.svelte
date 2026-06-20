@@ -7,6 +7,9 @@
     outlineItems,
     bibEntries,
     hierarchy,
+    markTabClean,
+    keybindings,
+    exportStatus,
   } from "$lib/stores";
   import { get } from "svelte/store";
   import { writeNote, writeBibliography, getWorkspaceDir } from "$lib/fs";
@@ -80,6 +83,7 @@
       } else {
         await writeNote($activeNoteId, content);
       }
+      markTabClean($activeNoteId);
     } catch {
       /* ignore */
     }
@@ -123,6 +127,24 @@
     $noteContent = val;
     clearTimeout(saveTimeout);
     saveTimeout = setTimeout(debouncedSave, 300);
+  }
+
+  // Override handleKeydown to use keybindings store
+  let activeBindings: typeof $keybindings = [];
+  $: activeBindings = $keybindings;
+
+  function matchBinding(e: KeyboardEvent): string | null {
+    const ctrl = e.ctrlKey || e.metaKey;
+    const parts: string[] = [];
+    if (ctrl) parts.push('ctrl');
+    if (e.shiftKey) parts.push('shift');
+    if (e.altKey) parts.push('alt');
+    const key = e.key.toLowerCase();
+    if (key === ' ') return null;
+    parts.push(key === ' ' ? 'space' : key);
+    const combo = parts.join('+');
+    const binding = activeBindings.find(b => b.keys === combo);
+    return binding?.command || null;
   }
 
   $: if (textareaRef) {
@@ -312,48 +334,34 @@
   }
 
   function handleKeydown(e: KeyboardEvent) {
-    if ((e.ctrlKey || e.metaKey) && e.key === "z") {
-      e.preventDefault();
-      undo();
-      return;
+    // Check customizable bindings first
+    if (activeBindings.length > 0) {
+      const cmd = matchBinding(e);
+      if (cmd) {
+        switch (cmd) {
+          case 'undo': e.preventDefault(); undo(); return;
+          case 'redo': e.preventDefault(); redo(); return;
+          case 'save': e.preventDefault(); debouncedSave(); return;
+          case 'bold': e.preventDefault(); wrapSelection("**", "نص"); return;
+          case 'italic': e.preventDefault(); wrapSelection("*", "نص"); return;
+          case 'insertTable': e.preventDefault(); showTableDialog = true; return;
+          case 'insertLink': e.preventDefault();
+            const ta = textareaRef;
+            const sel = ta.value.substring(ta.selectionStart, ta.selectionEnd);
+            sel ? wrapSelection("[", "](url)") : insertAtCursor("[نص الرابط](url)");
+            return;
+          case 'blockquote': e.preventDefault(); insertAtLineStart("> "); return;
+          case 'quickOpen': e.preventDefault();
+            window.dispatchEvent(new KeyboardEvent('keydown', { ctrlKey: true, key: 'p' }));
+            return;
+          case 'closeTab': e.preventDefault();
+            window.dispatchEvent(new KeyboardEvent('keydown', { ctrlKey: true, key: 'w' }));
+            return;
+        }
+      }
     }
-    if ((e.ctrlKey || e.metaKey) && e.key === "y") {
-      e.preventDefault();
-      redo();
-      return;
-    }
-    if ((e.ctrlKey || e.metaKey) && e.key === "s") {
-      e.preventDefault();
-      debouncedSave();
-      return;
-    }
-    if ((e.ctrlKey || e.metaKey) && e.key === "b") {
-      e.preventDefault();
-      wrapSelection("**", "نص");
-      return;
-    }
-    if ((e.ctrlKey || e.metaKey) && e.key === "i") {
-      e.preventDefault();
-      wrapSelection("*", "نص");
-      return;
-    }
-    if ((e.ctrlKey || e.metaKey) && e.key === "t") {
-      e.preventDefault();
-      showTableDialog = true;
-      return;
-    }
-    if ((e.ctrlKey || e.metaKey) && e.key === "l") {
-      e.preventDefault();
-      const ta = textareaRef;
-      const sel = ta.value.substring(ta.selectionStart, ta.selectionEnd);
-      sel ? wrapSelection("[", "](url)") : insertAtCursor("[نص الرابط](url)");
-      return;
-    }
-    if ((e.ctrlKey || e.metaKey) && e.key === "q") {
-      e.preventDefault();
-      insertAtLineStart("> ");
-      return;
-    }
+
+    // Fallback to hardcoded for unbounded keys
     if ((e.ctrlKey || e.metaKey) && e.code.startsWith("Digit")) {
       const level = parseInt(e.code.slice(-1));
       if (level >= 1 && level <= 6) {
