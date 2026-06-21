@@ -81,8 +81,13 @@
             <span class="setting-label">عائلة الخط</span>
             <select bind:value={$fontSettings.family}>
               <option value="Amiri">Amiri</option>
+              <option value="Andalus">Andalus</option>
+              <option value="Cairo">Cairo</option>
+              <option value="Calibri">Calibri</option>
               <option value="Noto Sans Arabic">Noto Sans Arabic</option>
+              <option value="Old Antic">Old Antic</option>
               <option value="Readex Pro">Readex Pro</option>
+              <option value="Simplified Arabic">Simplified Arabic</option>
             </select>
           </label>
           <label class="setting-row">

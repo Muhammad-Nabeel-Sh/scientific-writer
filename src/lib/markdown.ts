@@ -1,7 +1,6 @@
 import MarkdownIt from 'markdown-it';
 import katex from '@traptitech/markdown-it-katex';
 import hljs from 'highlight.js';
-import 'highlight.js/styles/github.css';
 import 'katex/dist/katex.min.css';
 import type { BibEntry } from './bibliography';
 import { replaceCitations, generateBibliographyHtml } from './bibliography';

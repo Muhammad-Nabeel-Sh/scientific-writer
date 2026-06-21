@@ -176,7 +176,6 @@ All state lives in Svelte stores (`src/lib/stores.ts`):
 | `previewRef`       | `writable`        | Preview div HTMLElement reference            |
 | `activeHeadingId`  | `writable<string\|null>` | Currently scrolled heading ID         |
 | `outlineItems`     | `derived`         | Parsed heading list from noteContent         |
-| `endnoteMode`      | `writable<boolean>` | Toggle footnotes→endnotes conversion       |
 | `digitStyle`       | `writable<DigitStyle>` | Arabic digit conversion style ('auto'\|'eastern'\|'western') |
 | `ligatureSettings` | `writable<LigatureSettings>` | OpenType font feature toggles      |
 | `fontSettings`     | `writable<FontSettings>` | Font family, weight, optical size, width |

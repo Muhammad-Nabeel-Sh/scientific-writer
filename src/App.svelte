@@ -5,7 +5,7 @@
     openTabList, pushHierarchySnapshot, undoHierarchy, redoHierarchy,
     recentWorkspaces, loadRecentWorkspaces, addRecentWorkspace,
     lastBackupTime, BACKUP_INTERVAL, exportStatus,
-    loadKeybindings, keybindings,
+    loadKeybindings, keybindings, highlightTheme,
   } from "$lib/stores";
   import { initWorkspace, readNote, ensureBibliography, backupNote, clearWorkspaceCache } from "$lib/fs";
   import { parseBibTeX } from "$lib/bibliography";
@@ -199,6 +199,23 @@
   $: {
     if (typeof window !== 'undefined') {
       window.addEventListener('reinit-workspace', handleReinit as EventListener);
+    }
+  }
+
+  const hlThemeModules: Record<string, { default: string }> = import.meta.glob(
+    '/node_modules/highlight.js/styles/*.css',
+    { eager: true, query: '?raw' },
+  );
+
+  let hlThemeStyleEl: HTMLStyleElement | null = null;
+
+  $: if ($highlightTheme) {
+    if (hlThemeStyleEl) hlThemeStyleEl.remove();
+    const key = Object.keys(hlThemeModules).find(k => k.endsWith($highlightTheme + '.css'));
+    if (key) {
+      hlThemeStyleEl = document.createElement('style');
+      hlThemeStyleEl.textContent = hlThemeModules[key].default;
+      document.head.appendChild(hlThemeStyleEl);
     }
   }
 </script>

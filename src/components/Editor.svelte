@@ -25,6 +25,8 @@
   import TafqitDialog from "./TafqitDialog.svelte";
   import DateDialog from "./DateDialog.svelte";
   import DictionaryDialog from "./DictionaryDialog.svelte";
+  import CodeDialog from "./CodeDialog.svelte";
+  import TypographySettings from "./TypographySettings.svelte";
 
   let textareaRef: HTMLTextAreaElement;
   let saveTimeout: ReturnType<typeof setTimeout>;
@@ -43,7 +45,9 @@
   let showTafqitDialog = false;
   let showDateDialog = false;
   let showDictionaryDialog = false;
+  let showCodeDialog = false;
   let showWikiLinkDialog = false;
+  let showTypographyDialog = false;
   let wikiLinkSearch = "";
   let tableRows = 3;
   let tableCols = 4;
@@ -731,6 +735,12 @@
         <line x1="16" y1="2" x2="16" y2="6" />
       </svg>
     </button>
+    <span class="sep"></span>
+    <button class="tb" title="إعدادات الطباعة" on:click={() => (showTypographyDialog = true)}>
+      <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 7V4h16v3" /><path d="M9 20h6" /><path d="M12 4v16" />
+      </svg>
+    </button>
   </div>
 
   {#if showQuranDialog}
@@ -772,10 +782,19 @@
   {#if showDateDialog}
     <DateDialog on:close={() => (showDateDialog = false)} {insertAtCursor} />
   {/if}
+  {#if showTypographyDialog}
+    <TypographySettings bind:show={showTypographyDialog} />
+  {/if}
   {#if showDictionaryDialog}
     <DictionaryDialog
       on:close={() => (showDictionaryDialog = false)}
       {appendText}
+    />
+  {/if}
+  {#if showCodeDialog}
+    <CodeDialog
+      on:close={() => (showCodeDialog = false)}
+      {insertAtCursor}
     />
   {/if}
   {#if showWikiLinkDialog}
@@ -942,7 +961,7 @@
       <span>قاموس</span>
     </button>
     <span class="bar-div"></span>
-    <button class="tb-quran" on:click={() => insertAtCursor("\n```\n\n```\n")}>
+    <button class="tb-quran" on:click={() => (showCodeDialog = true)}>
       <svg
         viewBox="0 0 24 24"
         stroke="currentColor"

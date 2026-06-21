@@ -12,6 +12,14 @@
   --font-sans: 'Amiri', 'Noto Sans Arabic', system-ui, sans-serif;
 }
 
+/* Bundled fonts */
+@font-face {
+  font-family: "Old Antic";
+  src: url("/fonts/OldAnticBold.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+}
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; overflow: hidden; direction: rtl; background: var(--bg); color: var(--fg); font-family: var(--font-serif); }
 
@@ -120,8 +128,9 @@ html, body { height: 100%; overflow: hidden; direction: rtl; background: var(--b
 .preview p { margin-bottom: 1em; }
 .preview a { color: #1a73e8; }
 .preview blockquote { border-inline-start: 3px solid #ccc; padding-inline-start: 1rem; color: #555; }
-.preview code { background: #f0f0f0; padding: 2px 6px; border-radius: 4px; font-family: var(--font-mono); color: #222; }
-.preview pre { background: #f5f5f5; padding: 1rem; border-radius: 6px; overflow-x: auto; color: #222; }
+.preview code:not(.hljs) { background: #f0f0f0; padding: 2px 6px; border-radius: 4px; font-family: var(--font-mono); color: #222; }
+.preview pre { padding: 0; border-radius: 6px; overflow-x: auto; }
+.preview pre code.hljs { display: block; padding: 1rem; }
 .preview table { width: 100%; border-collapse: collapse; margin: 1em 0; }
 .preview th, .preview td { border: 1px solid #ddd; padding: 8px; }
 .preview th { background: #eee; color: #111; }

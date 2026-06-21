@@ -140,9 +140,10 @@ export const previewRef = writable<HTMLElement | null>(null);
 export const activeHeadingId = writable<string | null>(null);
 export const outlineItems = derived(noteContent, ($c) => parseOutline($c));
 
-export const endnoteMode = writable(false);
-
 export const digitStyle = writable<DigitStyle>('auto');
+
+export const highlightTheme = writable(localStorage.getItem('sw_hl_theme') || 'github');
+highlightTheme.subscribe(v => localStorage.setItem('sw_hl_theme', v));
 
 export interface LigatureSettings {
   standard: boolean;

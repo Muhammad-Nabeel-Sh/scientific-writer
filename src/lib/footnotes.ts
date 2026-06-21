@@ -1,12 +1,6 @@
 import type MarkdownIt from 'markdown-it';
 import footnote from 'markdown-it-footnote';
 
-export let endnoteMode = false;
-
-export function setEndnoteMode(mode: boolean): void {
-  endnoteMode = mode;
-}
-
 export function footnotePlugin(md: MarkdownIt): void {
   md.use(footnote);
 
@@ -66,19 +60,11 @@ export function footnotePlugin(md: MarkdownIt): void {
     return ` <a href="#fnref${anchor}" class="footnote-backref" title="Jump to reference">↩</a>`;
   };
 
-  // Check endnoteMode at render time
   md.renderer.rules.footnote_block_open = (tokens, idx, options, env, slf) => {
-    if (endnoteMode) {
-      return '<hr class="footnotes-sep endnotes-sep">\n<section class="footnotes endnotes">\n<h2 class="endnotes-title">Endnotes</h2>\n<ol class="footnotes-list">\n';
-    }
-    // Default from markdown-it-footnote
     return '<hr class="footnotes-sep">\n<section class="footnotes">\n<ol class="footnotes-list">\n';
   };
 
   md.renderer.rules.footnote_block_close = (tokens, idx, options, env, slf) => {
-    if (endnoteMode) {
-      return '</ol>\n</section>\n';
-    }
     return '</ol>\n</section>\n';
   };
 }
