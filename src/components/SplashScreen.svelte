@@ -63,6 +63,16 @@
             <span class="label">الترقيم:</span>@umalqura/core · fuse.js
           </div>
           <div class="item">
+            <span class="label">التصدير:</span>Pandoc
+          </div>
+          <div class="item">
+            <span class="label">التدقيق الإملائي:</span>Hunspell · spellbook
+            (<a
+              href="https://github.com/LibreOffice/dictionaries"
+              >قاموس LibreOffice العربي</a
+            >)
+          </div>
+          <div class="item">
             <span class="label">القواميس:</span><a
               href="https://github.com/wizsk/arabic_lexicons">arabic_lexicons</a
             > (11 معجماً)
