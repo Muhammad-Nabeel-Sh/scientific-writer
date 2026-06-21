@@ -1,7 +1,9 @@
 use rusqlite::Connection;
 use serde::Serialize;
+use spellbook::Dictionary;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 use tauri::Manager;
 
 fn workspace_dir(app: &tauri::AppHandle) -> PathBuf {
@@ -346,11 +348,85 @@ fn list_dictionaries() -> Vec<serde_json::Value> {
         .collect()
 }
 
+// ── Hunspell spellcheck ──────────────────────────────────────────────
+
+struct SpellcheckState {
+    dict: Mutex<Option<Dictionary<spellbook::DefaultHashBuilder>>>,
+}
+
+fn hunspell_dir(app: Option<&tauri::AppHandle>) -> PathBuf {
+    if let Some(app) = app {
+        if let Ok(resource_dir) = app.path().resource_dir() {
+            let dir = resource_dir.join("hunspell");
+            if dir.exists() {
+                return dir;
+            }
+        }
+    }
+    project_root().join("src-tauri/resources/hunspell")
+}
+
+fn load_dictionary(app: &tauri::AppHandle) -> Result<Dictionary<spellbook::DefaultHashBuilder>, String> {
+    let dir = hunspell_dir(Some(app));
+    let dic_path = dir.join("ar.dic");
+    let aff_path = dir.join("ar.aff");
+
+    let dic_str = fs::read_to_string(&dic_path)
+        .map_err(|e| format!("فشل قراءة ملف القاموس: {}", e))?;
+    let aff_str = fs::read_to_string(&aff_path)
+        .map_err(|e| format!("فشل قراءة ملف الصرف: {}", e))?;
+
+    Dictionary::new(&aff_str, &dic_str)
+        .map_err(|e| format!("فشل تحميل المدقق الإملائي: {}", e))
+}
+
+#[tauri::command]
+fn check_spelling(app: tauri::AppHandle, state: tauri::State<'_, SpellcheckState>, text: String) -> Result<Vec<SpellError>, String> {
+    let dict = {
+        let mut d = state.dict.lock().map_err(|e| e.to_string())?;
+        if d.is_none() {
+            *d = Some(load_dictionary(&app)?);
+        }
+        d.as_ref().unwrap().clone()
+    };
+
+    let mut results: Vec<SpellError> = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+
+    for raw in text.split(|c: char| !c.is_alphanumeric() && c != '\'' && c != '\u{0621}') {
+        let word = raw.trim();
+        if word.is_empty() || word.len() < 2 { continue; }
+        if !word.chars().any(|c| c >= '\u{0600}' && c <= '\u{06FF}') {
+            continue;
+        }
+        if seen.insert(word.to_string()) {
+            let w = word.to_string();
+            if !dict.check(&w) {
+                let mut suggestions = Vec::new();
+                dict.suggest(&w, &mut suggestions);
+                suggestions.truncate(5);
+                results.push(SpellError { word: w, suggestions });
+            }
+        }
+    }
+
+    Ok(results)
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
+struct SpellError {
+    word: String,
+    suggestions: Vec<String>,
+}
+
+// ── Hunspell spellcheck end ──────────────────────────────────────────
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .manage(SpellcheckState { dict: Mutex::new(None) })
         .invoke_handler(tauri::generate_handler![
             greet,
             get_workspace_dir,
@@ -370,6 +446,7 @@ pub fn run() {
             search_dictionary,
             list_dictionaries,
             debug_dictionary_path,
+            check_spelling,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

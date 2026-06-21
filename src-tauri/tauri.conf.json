@@ -30,7 +30,8 @@
     "active": true,
     "targets": "all",
     "resources": {
-      "db/dicts.sqlite": "db/dicts.sqlite"
+      "db/dicts.sqlite": "db/dicts.sqlite",
+      "resources/hunspell/*": "hunspell/"
     }
   },
   "plugins": {}

@@ -26,6 +26,8 @@
   import DateDialog from "./DateDialog.svelte";
   import DictionaryDialog from "./DictionaryDialog.svelte";
   import CodeDialog from "./CodeDialog.svelte";
+  import SpellCheckDialog from "./SpellCheckDialog.svelte";
+
   import TypographySettings from "./TypographySettings.svelte";
 
   let textareaRef: HTMLTextAreaElement;
@@ -46,6 +48,8 @@
   let showDateDialog = false;
   let showDictionaryDialog = false;
   let showCodeDialog = false;
+  let showSpellCheckDialog = false;
+
   let showWikiLinkDialog = false;
   let showTypographyDialog = false;
   let wikiLinkSearch = "";
@@ -140,14 +144,14 @@
   function matchBinding(e: KeyboardEvent): string | null {
     const ctrl = e.ctrlKey || e.metaKey;
     const parts: string[] = [];
-    if (ctrl) parts.push('ctrl');
-    if (e.shiftKey) parts.push('shift');
-    if (e.altKey) parts.push('alt');
+    if (ctrl) parts.push("ctrl");
+    if (e.shiftKey) parts.push("shift");
+    if (e.altKey) parts.push("alt");
     const key = e.key.toLowerCase();
-    if (key === ' ') return null;
-    parts.push(key === ' ' ? 'space' : key);
-    const combo = parts.join('+');
-    const binding = activeBindings.find(b => b.keys === combo);
+    if (key === " ") return null;
+    parts.push(key === " " ? "space" : key);
+    const combo = parts.join("+");
+    const binding = activeBindings.find((b) => b.keys === combo);
     return binding?.command || null;
   }
 
@@ -343,23 +347,53 @@
       const cmd = matchBinding(e);
       if (cmd) {
         switch (cmd) {
-          case 'undo': e.preventDefault(); undo(); return;
-          case 'redo': e.preventDefault(); redo(); return;
-          case 'save': e.preventDefault(); debouncedSave(); return;
-          case 'bold': e.preventDefault(); wrapSelection("**", "نص"); return;
-          case 'italic': e.preventDefault(); wrapSelection("*", "نص"); return;
-          case 'insertTable': e.preventDefault(); showTableDialog = true; return;
-          case 'insertLink': e.preventDefault();
+          case "undo":
+            e.preventDefault();
+            undo();
+            return;
+          case "redo":
+            e.preventDefault();
+            redo();
+            return;
+          case "save":
+            e.preventDefault();
+            debouncedSave();
+            return;
+          case "bold":
+            e.preventDefault();
+            wrapSelection("**", "نص");
+            return;
+          case "italic":
+            e.preventDefault();
+            wrapSelection("*", "نص");
+            return;
+          case "insertTable":
+            e.preventDefault();
+            showTableDialog = true;
+            return;
+          case "insertLink":
+            e.preventDefault();
             const ta = textareaRef;
             const sel = ta.value.substring(ta.selectionStart, ta.selectionEnd);
-            sel ? wrapSelection("[", "](url)") : insertAtCursor("[نص الرابط](url)");
+            sel
+              ? wrapSelection("[", "](url)")
+              : insertAtCursor("[نص الرابط](url)");
             return;
-          case 'blockquote': e.preventDefault(); insertAtLineStart("> "); return;
-          case 'quickOpen': e.preventDefault();
-            window.dispatchEvent(new KeyboardEvent('keydown', { ctrlKey: true, key: 'p' }));
+          case "blockquote":
+            e.preventDefault();
+            insertAtLineStart("> ");
             return;
-          case 'closeTab': e.preventDefault();
-            window.dispatchEvent(new KeyboardEvent('keydown', { ctrlKey: true, key: 'w' }));
+          case "quickOpen":
+            e.preventDefault();
+            window.dispatchEvent(
+              new KeyboardEvent("keydown", { ctrlKey: true, key: "p" }),
+            );
+            return;
+          case "closeTab":
+            e.preventDefault();
+            window.dispatchEvent(
+              new KeyboardEvent("keydown", { ctrlKey: true, key: "w" }),
+            );
             return;
         }
       }
@@ -438,7 +472,7 @@
         /><line x1="17" y1="20" x2="5" y2="20" /></svg
       >
     </button>
-    <button class="tb" title="شطب" on:click={() => wrapSelection("~~", "نص")}>
+    <!-- <button class="tb" title="شطب" on:click={() => wrapSelection("~~", "نص")}>
       <svg
         viewBox="0 0 24 24"
         stroke="currentColor"
@@ -463,7 +497,7 @@
           points="8 6 2 12 8 18"
         /></svg
       >
-    </button>
+    </button> -->
 
     <div class="sep"></div>
 
@@ -736,9 +770,42 @@
       </svg>
     </button>
     <span class="sep"></span>
-    <button class="tb" title="إعدادات الطباعة" on:click={() => (showTypographyDialog = true)}>
-      <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <button
+      class="tb"
+      title="إعدادات الطباعة"
+      on:click={() => (showTypographyDialog = true)}
+    >
+      <svg
+        viewBox="0 0 24 24"
+        width="18"
+        height="18"
+        stroke="currentColor"
+        fill="none"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
         <path d="M4 7V4h16v3" /><path d="M9 20h6" /><path d="M12 4v16" />
+      </svg>
+    </button>
+    <span class="sep"></span>
+    <button
+      class="tb"
+      title="التدقيق الإملائي"
+      on:click={() => (showSpellCheckDialog = true)}
+    >
+      <svg
+        viewBox="0 0 24 24"
+        width="18"
+        height="18"
+        stroke="currentColor"
+        fill="none"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M12 20h9" />
+        <path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
       </svg>
     </button>
   </div>
@@ -792,9 +859,18 @@
     />
   {/if}
   {#if showCodeDialog}
-    <CodeDialog
-      on:close={() => (showCodeDialog = false)}
-      {insertAtCursor}
+    <CodeDialog on:close={() => (showCodeDialog = false)} {insertAtCursor} />
+  {/if}
+  {#if showSpellCheckDialog}
+    <SpellCheckDialog
+      text={textareaRef?.value ?? content}
+      on:close={() => (showSpellCheckDialog = false)}
+      on:replace={(e) => {
+        const { word, replacement } = e.detail;
+        pushHistory();
+        textareaRef.value = textareaRef.value.replaceAll(word, replacement);
+        textareaRef.dispatchEvent(new Event("input", { bubbles: true }));
+      }}
     />
   {/if}
   {#if showWikiLinkDialog}
@@ -869,7 +945,6 @@
   <textarea
     bind:this={textareaRef}
     dir="auto"
-    spellcheck="false"
     class="editor"
     value={content}
     on:input={handleInput}
@@ -1104,6 +1179,7 @@
     width: 18px;
     height: 18px;
   }
+
   .sep {
     width: 1px;
     height: 20px;

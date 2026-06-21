@@ -110,3 +110,19 @@ Architecture
 Enhancement	Why
 Undo/redo for hierarchy	Currently only editor content. Renaming/deleting/moving notes is permanent.
 Customizable shortcuts	Hardcoded in Editor.svelte. A keybindings store would let users remap them.
+
+## Critical missing features
+1. Arabic spell checker / grammar checker — The biggest gap. No spell-check at all. Could integrate with a local hunspell dictionary or a native library.
+2. Reference manager integration — No Zotero/Mendeley/Endnote import. Currently BibTeX is manual-only.
+3. PDF export with proper Arabic typesetting — Currently relies on Pandoc (requires users to install Pandoc + LaTeX) or browser print. A native Tauri-based PDF generator would be smoother.
+4. Global find & replace — Only per-note Ctrl+F via browser, no workspace-wide search-and-replace.
+5. Focus / distraction-free mode — No way to hide the sidebars and toolbar for raw writing.
+## Nice-to-have missing features
+ 6. Tables visual editor — Table creation is via a dialog (row/col numbers + alignment), but no in-editor table editing.
+ 7. Reading time / readability stats — TTFB, Flesch scores for Arabic text, estimated reading time.
+ 8. Session tracking / writing goals — Word count targets, daily progress, session timer.
+ 9. Graph / backlink visualization — Obsidian-like graph of note connections.
+10. Template editor UI — No way to create/edit templates without writing code.
+11. Dark/light mode toggle — Currently dark-only, no light mode switch.
+12. Cloud sync — No sync mechanism (files are local only).
+The top 3 that would move the needle most for a researcher writing in Arabic: spell checker, reference manager import, and native PDF export.
