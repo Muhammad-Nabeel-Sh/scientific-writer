@@ -121,6 +121,12 @@ scientific-writer/
 └── ARCHITECTURE.md             # Deeper design notes
 ```
 
+## Documentation
+
+- [`ARCHITECTURE.md`](ARCHITECTURE.md) — design, data flow and module map.
+- [`docs/FEATURE_STATUS.md`](docs/FEATURE_STATUS.md) — implemented, partial and
+  missing features.
+
 ## Data files
 
 | Path | Size | Notes |
