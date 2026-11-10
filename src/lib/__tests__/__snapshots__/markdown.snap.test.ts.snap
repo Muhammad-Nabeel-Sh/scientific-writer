@@ -1,0 +1,440 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`renderMarkdown golden snapshots > renders a bibliography for cited fixtures 1`] = `
+"<p dir="auto">See (?2021Rehabilitation?).</p>
+<hr class="bib-sep"><section class="bibliography" dir="auto"><h2 id="bibliography">References</h2><ol></ol><div class="missing-citations"><p>⚠ Missing references:</p><ul><li>2021Rehabilitation</li></ul></div></section>"
+`;
+
+exports[`renderMarkdown golden snapshots > renders classical-book-intro.md 1`] = `
+"<h1 dir="auto">التعريف بالكتاب</h1>
+<p dir="auto">بسم الله الرحمن الرحيم</p>
+<h2 dir="auto">منهج الكتاب</h2>
+<p dir="auto">هذا نموذج لتخطيط الكتب التراثية العربية، حيث يظهر المتن (النص الأصلي) في الوسط، والشرح حوله، والحواشي على الهوامش. كما تظهر التعليقات بين السطور (التعليق بين السطور) وهي طريقة شائعة في كتب التفسير والنحو.</p>
+<h3 dir="auto">عناصر التخطيط التراثي</h3>
+<figure class="table-figure" id="tbl-1">
+        <figcaption dir="auto">جدول 1</figcaption>
+        <table dir="rtl"
+<thead>
+<tr>
+<th dir="auto">العنصر</th>
+<th dir="auto">الوظيفة</th>
+<th dir="auto">مستوى الحجم</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td dir="auto">المتن</td>
+<td dir="auto">النص الأصلي للمؤلف</td>
+<td dir="auto">الأكبر حجماً</td>
+</tr>
+<tr>
+<td dir="auto">الشرح</td>
+<td dir="auto">شرح المتن وبيان معانيه</td>
+<td dir="auto">وسط</td>
+</tr>
+<tr>
+<td dir="auto">الحاشية</td>
+<td dir="auto">تعليقات وتنبيهات على الشرح</td>
+<td dir="auto">الأصغر حجماً</td>
+</tr>
+<tr>
+<td dir="auto">التعليق بين السطور</td>
+<td dir="auto">إيضاح كلمة أو عبارة بين السطور</td>
+<td dir="auto">صغير جداً</td>
+</tr>
+</tbody>
+</table>
+      </figure>
+<h3 dir="auto">كيفية الاستخدام</h3>
+<p dir="auto">١. استخدم <code>:::matn</code> للنص الأصلي</p>
+<p dir="auto">٢. استخدم <code>:::sharh</code> للشرح</p>
+<p dir="auto">٣. استخدم <code>:::hashiyah</code> للحواشي</p>
+<p dir="auto">٤. استخدم <span class="interlinear-unit"><span class="interlinear-base">\`</span><span class="interlinear-gloss">كلمة</span></span>) للتعليق بين السطور</p>
+<blockquote dir="auto">
+<p dir="auto">هذا النموذج معد للتطوير ويمكن إضافة المزيد من النصوص التراثية من كتب الفقه والحديث والتفسير والنحو.</p>
+</blockquote>
+"
+`;
+
+exports[`renderMarkdown golden snapshots > renders classical-hawashi.md 1`] = `
+"<h1 dir="auto">الحواشي والتعليقات</h1>
+<p dir="auto">هذا نموذج لجمع الحواشي المستقلة في ملف واحد. الحواشي هي تعليقات على المتن والشرح، وتكون عادة على هامش الصفحة.</p>
+<h2 dir="auto">منهج الحواشي</h2>
+<p dir="auto">تكتب الحواشي بأسلوب موجز، وترقم بأرقام مستقلة لكل صفحة أو لكل باب.</p>
+<h3 dir="auto">أمثلة من حواشي كتب الفقه</h3>
+<blockquote dir="auto">
+<p dir="auto">(١) قال الإمام النووي في المجموع: الماء الطهور هو الباقي على خلقته.</p>
+</blockquote>
+<blockquote dir="auto"></blockquote>
+<blockquote dir="auto">
+<p dir="auto">(٢) قال ابن حجر في الفتح: المسح على الخفين جائز بالإجماع.</p>
+</blockquote>
+<blockquote dir="auto"></blockquote>
+<blockquote dir="auto">
+<p dir="auto">(٣) ذهب الحنفية إلى أن مسح الرأس يجب بمقدار الربع.</p>
+</blockquote>
+<h2 dir="auto">حاشية على المتن</h2>
+<pre dir="auto" dir="auto"><code class="hljs">(متن) قال المصنف: والمياه كلها طاهرة إلا ما استثني.
+(حاشية) الماء المستثنى هو الماء المتغير بنجاسة، والماء القليل الذي ولغ فيه الكلب.
+</code></pre>
+<h2 dir="auto">حاشية على الشرح</h2>
+<pre dir="auto" dir="auto"><code class="hljs">(شرح) قوله: الطهارة رفع الحدث وإزالة الخبث.
+(حاشية) الخبث: النجاسة، والحدث: ما يوجب الوضوء أو الغسل.
+</code></pre>
+"
+`;
+
+exports[`renderMarkdown golden snapshots > renders classical-matn-salah.md 1`] = `
+"<figure class="academic-block page" id="page-1" dir="auto">
+<details open>
+<summary><span class="block-label">page 1</span></summary>
+<figure class="academic-block matn" id="matn-1" dir="auto">
+<details open>
+<summary><span class="block-label">matn 1</span> <span class="block-title">.chapter</span></summary>
+<h1 dir="auto">كتاب الصلاة</h1>
+</details>
+</figure>
+</details>
+</figure>
+<figure class="academic-block matn" id="matn-2" dir="auto">
+<details open>
+<summary><span class="block-label">matn 2</span></summary>
+<p dir="auto">قال الله تعالى: {إن الصلاة كانت على المؤمنين كتاباً موقوتاً}</p>
+<p dir="auto">وقال النبي صلى الله عليه وسلم: «بني الإسلام على خمس: شهادة أن لا إله إلا الله وأن محمداً رسول الله، وإقام الصلاة، وإيتاء الزكاة، وصوم رمضان، وحج البيت»</p>
+<p dir="auto">والصلاة واجبة على كل مسلم بالغ عاقل.</p>
+<p dir="auto">للصلاة شروط وأركان وواجبات وسنن وهيئات.</p>
+<p dir="auto">شروط الصلاة: الإسلام، والعقل، والتمييز، ورفع الحدث، وإزالة النجاسة، وستر العورة، ودخول الوقت، واستقبال القبلة.</p>
+<p dir="auto">أركان الصلاة أربعة عشر: القيام مع القدرة، وتكبيرة الإحرام، وقراءة الفاتحة، والركوع، والاعتدال من الركوع، والسجود، والرفع من السجود، والجلوس بين السجدتين، والطمأنينة في جميع الأركان، والتشهد الأخير، والجلوس له، والصلاة على النبي صلى الله عليه وسلم، والتسليمتان، والترتيب.</p>
+</details>
+</figure>
+<figure class="academic-block sharh" id="sharh-1" dir="auto">
+<details open>
+<summary><span class="block-label">sharh 1</span></summary>
+<p dir="auto"><strong>الشرح:</strong> لما فرغ المصنف من كتاب الطهارة شرع في كتاب الصلاة. والصلاة هي الركن الثاني من أركان الإسلام.</p>
+<p dir="auto">قوله تعالى: {إن الصلاة كانت على المؤمنين كتاباً موقوتاً} أي مفروضة في أوقات محددة. والموقوت: المؤقت بوقت معين.</p>
+<p dir="auto">قوله صلى الله عليه وسلم: «بني الإسلام على خمس» الحديث متفق عليه. وفيه أن الصلاة هي الركن العملي الثاني بعد الشهادتين.</p>
+<p dir="auto">شروط الصلاة تنقسم إلى: شروط وجوب، وشروط صحة. فشروط الوجوب هي: الإسلام، والبلوغ، والعقل. وشروط الصحة هي: دخول الوقت، والطهارة، واستقبال القبلة، وستر العورة.</p>
+<p dir="auto">أركان الصلاة: ما كانت الصلاة لا تنعقد إلا بها، وتبطل بتركها عمداً وسهواً. والواجبات: ما تبطل الصلاة بتركها عمداً لا سهواً. والسنن: ما يثاب فاعلها ولا تبطل الصلاة بتركها.</p>
+</details>
+</figure>
+<figure class="academic-block hashiyah" id="hashiyah-1" dir="auto">
+<details open>
+<summary><span class="block-label">hashiyah 1</span></summary>
+<p dir="auto">(١) حديث «بني الإسلام على خمس» أخرجه البخاري ومسلم من حديث عبد الله بن عمر رضي الله عنهما.</p>
+<p dir="auto">(٢) الخلاف في عدد أركان الصلاة مبني على اختلاف الفقهاء في تعريف الركن والواجب. فالحنفية يفرقون بين الركن والواجب، بينما الشافعية لا يفرقون.</p>
+<p dir="auto">(٣) استقبال القبلة شرط من شروط الصلاة للقادر، إلا في حالة الخوف والشدة.</p>
+<p dir="auto">(٤) الطمأنينة: السكون في كل ركن من أركان الصلاة.</p>
+</details>
+</figure>
+<figure class="academic-block " id="-1" dir="auto">
+<details open>
+<summary><span class="block-label"> 1</span></summary>
+</details>
+</figure>
+"
+`;
+
+exports[`renderMarkdown golden snapshots > renders classical-matn-taharah.md 1`] = `
+"<figure class="academic-block page" id="page-1" dir="auto">
+<details open>
+<summary><span class="block-label">page 1</span></summary>
+<figure class="academic-block matn" id="matn-1" dir="auto">
+<details open>
+<summary><span class="block-label">matn 1</span> <span class="block-title">.chapter</span></summary>
+<h1 dir="auto">كتاب الطهارة</h1>
+<p dir="auto">بسم الله الرحمن الرحيم</p>
+</details>
+</figure>
+</details>
+</figure>
+<figure class="academic-block matn" id="matn-2" dir="auto">
+<details open>
+<summary><span class="block-label">matn 2</span></summary>
+<p dir="auto">قال الله تعالى: {يا أيها الذين آمنوا إذا قمتم إلى الصلاة فاغسلوا وجوهكم وأيديكم إلى المرافق وامسحوا برؤوسكم وأرجلكم إلى الكعبين}</p>
+<p dir="auto">وقال النبي صلى الله عليه وسلم: «لا تقبل صلاة بغير طهور»</p>
+<p dir="auto">والمياه كلها طاهرة إلا ما استثني بدليل شرعي.</p>
+<p dir="auto">فالماء الطاهر هو الباقي على أصل خلقته.</p>
+<p dir="auto">والطهارة تنقسم إلى قسمين: طهارة من الحدث، وطهارة من النجس.</p>
+<p dir="auto">فطهارة الحدث تكون بالوضوء والغسل والتيمم.</p>
+<p dir="auto">وطهارة النجس تكون بإزالة النجاسة عن البدن والثوب والمكان.</p>
+</details>
+</figure>
+<figure class="academic-block sharh" id="sharh-1" dir="auto">
+<details open>
+<summary><span class="block-label">sharh 1</span></summary>
+<p dir="auto"><strong>الشرح:</strong> قوله: «كتاب الطهارة» الطهارة في اللغة: النظافة والنزاهة. وفي الشرع: رفع الحدث وإزالة الخبث. وإنما قدم المصنف كتاب الطهارة لأنها شرط الصلاة، وهي أول ما يحاسب عليه العبد.</p>
+<p dir="auto">قوله تعالى: {يا أيها الذين آمنوا إذا قمتم إلى الصلاة} الخطاب للمؤمنين، والمراد بالقيام إلى الصلاة: إرادة الدخول فيها.</p>
+<p dir="auto">قوله: {فاغسلوا وجوهكم} الوجه: ما دارت عليه العيون من الجبهة إلى الذقن عرضاً، ومن الأذن إلى الأذن طولاً.</p>
+<p dir="auto">قوله: {وامسحوا برؤوسكم} المسح: إمرار اليد المبتلة على الرأس. واختلف الفقهاء في مقدار المسح: فقيل: يجب مسح جميع الرأس، وقيل: يجزئ مسح بعضه.</p>
+<p dir="auto">قوله صلى الله عليه وسلم: «لا تقبل صلاة بغير طهور» هذا حديث صحيح رواه مسلم. وفيه دليل على أن الطهارة شرط لصحة الصلاة، فلا تصح الصلاة بدونها.</p>
+</details>
+</figure>
+<figure class="academic-block hashiyah" id="hashiyah-1" dir="auto">
+<details open>
+<summary><span class="block-label">hashiyah 1</span></summary>
+<p dir="auto">(١) الطهارة: مصدر طهُر يَطهُر طَهارةً، يقال: ثوب طاهر وطَهُور.</p>
+<p dir="auto">(٢) الحديث أخرجه مسلم في كتاب الطهارة، باب وجوب الطهارة للصلاة.</p>
+<p dir="auto">(٣) اختلف الفقهاء في حكم مسح الرأس: فذهب الشافعية إلى وجوب مسح أقل ما يطلق عليه اسم مسح، وذهب الحنابلة إلى وجوب مسح جميع الرأس.</p>
+<p dir="auto">(٤) الغسل: إفاضة الماء على جميع البدن بنية.</p>
+</details>
+</figure>
+<figure class="academic-block " id="-1" dir="auto">
+<details open>
+<summary><span class="block-label"> 1</span></summary>
+</details>
+</figure>
+"
+`;
+
+exports[`renderMarkdown golden snapshots > renders classical-sharh-salah.md 1`] = `
+"<figure class="academic-block page" id="page-1" dir="auto">
+<details open>
+<summary><span class="block-label">page 1</span></summary>
+<figure class="academic-block matn" id="matn-1" dir="auto">
+<details open>
+<summary><span class="block-label">matn 1</span> <span class="block-title">.chapter</span></summary>
+<h1 dir="auto">شرح كتاب الصلاة</h1>
+</details>
+</figure>
+</details>
+</figure>
+<figure class="academic-block sharh" id="sharh-1" dir="auto">
+<details open>
+<summary><span class="block-label">sharh 1</span></summary>
+<h2 dir="auto">مقدمة شرح الصلاة</h2>
+<p dir="auto">الحمد لله رب العالمين، والصلاة والسلام على رسول الله.</p>
+<p dir="auto">الصلاة هي صلة العبد بربه، وهي عمود الدين، وقد فرضها الله تعالى على المسلمين في ليلة الإسراء والمعراج.</p>
+<h3 dir="auto">حكم الصلاة</h3>
+<p dir="auto">الصلاة واجبة على كل مسلم بالغ عاقل بالإجماع. قال الله تعالى: {فويل للمصلين الذين هم عن صلاتهم ساهون} وقال {حافظوا على الصلوات والصلاة الوسطى}.</p>
+<h3 dir="auto">شروط الصلاة</h3>
+<p dir="auto">شروط الصلاة هي ما تتوقف عليها صحة الصلاة من كونها قبل الدخول فيها، وتنقسم إلى:</p>
+<p dir="auto">١. <strong>شروط وجوب</strong>: الإسلام، والبلوغ، والعقل.</p>
+<p dir="auto">٢. <strong>شروط صحة</strong>: الطهارة من الحدث والنجس، وستر العورة، ودخول الوقت، واستقبال القبلة.</p>
+<h3 dir="auto">أركان الصلاة</h3>
+<p dir="auto">أركان الصلاة أربعة عشر كما تقدم:</p>
+<p dir="auto">١. القيام مع القدرة</p>
+<p dir="auto">٢. تكبيرة الإحرام</p>
+<p dir="auto">٣. قراءة الفاتحة</p>
+<p dir="auto">٤. الركوع</p>
+<p dir="auto">٥. الاعتدال من الركوع</p>
+<p dir="auto">٦. السجود</p>
+<p dir="auto">٧. الرفع من السجود</p>
+<p dir="auto">٨. الجلوس بين السجدتين</p>
+<p dir="auto">٩. الطمأنينة</p>
+<p dir="auto">١٠. التشهد الأخير</p>
+<p dir="auto">١١. الجلوس للتشهد الأخير</p>
+<p dir="auto">١٢. الصلاة على النبي</p>
+<p dir="auto">١٣. التسليمتان</p>
+<p dir="auto">١٤. الترتيب</p>
+</details>
+</figure>
+<figure class="academic-block hashiyah" id="hashiyah-1" dir="auto">
+<details open>
+<summary><span class="block-label">hashiyah 1</span></summary>
+<p dir="auto">(١) الصلاة الوسطى هي صلاة العصر على الراجح من أقوال العلماء.</p>
+<p dir="auto">(٢) القدرة المعتبرة في القيام: القدرة الحقيقية على الوقوف بدون ضرر.</p>
+<p dir="auto">(٣) الطمأنينة: أن يستقر المصفي في كل ركن حتى تطمئن مفاصله.</p>
+</details>
+</figure>
+<figure class="academic-block " id="-1" dir="auto">
+<details open>
+<summary><span class="block-label"> 1</span></summary>
+</details>
+</figure>
+"
+`;
+
+exports[`renderMarkdown golden snapshots > renders classical-sharh-taharah.md 1`] = `
+"<figure class="academic-block page" id="page-1" dir="auto">
+<details open>
+<summary><span class="block-label">page 1</span></summary>
+<figure class="academic-block matn" id="matn-1" dir="auto">
+<details open>
+<summary><span class="block-label">matn 1</span> <span class="block-title">.chapter</span></summary>
+<h1 dir="auto">شرح كتاب الطهارة</h1>
+</details>
+</figure>
+</details>
+</figure>
+<figure class="academic-block sharh" id="sharh-1" dir="auto">
+<details open>
+<summary><span class="block-label">sharh 1</span></summary>
+<h2 dir="auto">مقدمة الشرح</h2>
+<p dir="auto">الحمد لله رب العالمين، والصلاة والسلام على سيدنا محمد وعلى آله وصحبه أجمعين.</p>
+<p dir="auto">وبعد: فهذا شرح مختصر على كتاب الطهارة، نبين فيه معاني الألفاظ، ونوضح الأحكام التي تضمنتها نصوص المتن، مع ذكر بعض الأدلة والتعليقات.</p>
+<h3 dir="auto">معنى الطهارة</h3>
+<p dir="auto">الطهارة لغة: النظافة والنزاهة من الأدناس. تقول: طهُر الشيء طهارةً إذا نظف.</p>
+<p dir="auto">والطهارة شرعاً: رفع ما يمنع الصلاة من حدث أو نجس. وتكون بالماء الطهور أو بالتراب في حال عدم وجود الماء أو العجز عن استعماله.</p>
+<h3 dir="auto">أنواع المياه</h3>
+<p dir="auto">المياه التي يصح التطهر بها هي:</p>
+<p dir="auto">١. <strong>الماء الطهور</strong>: هو الباقي على خلقته، وهو طاهر في نفسه مطهر لغيره.</p>
+<p dir="auto">٢. <strong>الماء الطاهر</strong>: هو الذي تغير لونه أو طعمه أو ريحه بشيء طاهر، فهو طاهر في نفسه غير مطهر لغيره.</p>
+<p dir="auto">٣. <strong>الماء النجس</strong>: هو الذي تغير بشيء نجس، فلا يصح التطهر به.</p>
+</details>
+</figure>
+<figure class="academic-block hashiyah" id="hashiyah-1" dir="auto">
+<details open>
+<summary><span class="block-label">hashiyah 1</span></summary>
+<p dir="auto">(١) الفرق بين الطاهر والطهور: الطهور ما يتطهر به، والطاهر ما صح كونه طاهراً لا يصح التطهر به.</p>
+<p dir="auto">(٢) اختلف الفقهاء في الماء القليل إذا ولغ فيه الكلب. والراجح أنه ينجس.</p>
+<p dir="auto">(٣) الماء الكثير إذا تغيرت أوصافه بنجاسة فإنه ينجس عند جمهور الفقهاء.</p>
+</details>
+</figure>
+<figure class="academic-block " id="-1" dir="auto">
+<details open>
+<summary><span class="block-label"> 1</span></summary>
+<h2 dir="auto">خلاصة الشرح</h2>
+<p dir="auto">هذا شرح موجز، ومن أراد التوسع فعليه بالمبسوطات وشروح المختصرات. والحمد لله رب العالمين.</p>
+</details>
+</figure>
+"
+`;
+
+exports[`renderMarkdown golden snapshots > renders code and tables with eastern digits 1`] = `
+"<p dir="auto">هذه عينة من code مكتوب بلغة python</p>
+<pre dir="auto" dir="auto"><code class="hljs language-python"><span class="hljs-comment"># --- SIDEBAR CONTROLS ---</span>
+st.sidebar.header(<span class="hljs-string">&quot;Simulation Parameters&quot;</span>)
+<span class="hljs-comment"># 1. Population Distribution Type</span>
+dist_type = st.sidebar.selectbox(
+    <span class="hljs-string">&quot;1. Select Population Distribution&quot;</span>, (<span class="hljs-string">&quot;Uniform&quot;</span>, <span class="hljs-string">&quot;Exponential&quot;</span>, <span class="hljs-string">&quot;Normal&quot;</span>, <span class="hljs-string">&quot;Beta&quot;</span>)
+)
+<span class="hljs-comment"># 2. Sample Size (n)</span>
+n_size = st.sidebar.slider(<span class="hljs-string">&quot;2. Sample Size (n)&quot;</span>, min_value=<span class="hljs-number">1</span>, max_value=<span class="hljs-number">100</span>, value=<span class="hljs-number">30</span>)
+<span class="hljs-comment"># 3. Number of Iterations (How many samples to take)</span>
+iterations = st.sidebar.slider(
+    <span class="hljs-string">&quot;3. Number of Iterations&quot;</span>, min_value=<span class="hljs-number">10</span>, max_value=<span class="hljs-number">1000</span>, value=<span class="hljs-number">100</span>
+)
+</code></pre>
+<p dir="auto">يمكن تغيير لون code block باستخدام أحد الأوامر التالية:</p>
+<ul dir="rtl">
+<li dir="auto">
+<p dir="auto">استخدام مكتبة HighlighJS</p>
+</li>
+<li dir="auto">
+<p dir="auto">يمكن الرجوع إلى</p>
+</li>
+</ul>
+<figure class="table-figure" id="tbl-1">
+        <figcaption dir="auto">جدول 1</figcaption>
+        <table dir="rtl"
+<thead>
+<tr>
+<th dir="auto" style="text-align:left">عنوان ١</th>
+<th dir="auto" style="text-align:left">عنوان ٢</th>
+<th dir="auto" style="text-align:left">عنوان ٣</th>
+<th dir="auto" style="text-align:left">عنوان ٤</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td dir="auto" style="text-align:left">خلية ١.١</td>
+<td dir="auto" style="text-align:left">خلية ١.٢</td>
+<td dir="auto" style="text-align:left">خلية ١.٣</td>
+<td dir="auto" style="text-align:left">خلية ١.٤</td>
+</tr>
+<tr>
+<td dir="auto" style="text-align:left">خلية ٢.١</td>
+<td dir="auto" style="text-align:left">خلية ٢.٢</td>
+<td dir="auto" style="text-align:left">خلية ٢.٣</td>
+<td dir="auto" style="text-align:left">خلية ٢.٤</td>
+</tr>
+<tr>
+<td dir="auto" style="text-align:left">خلية ٣.١</td>
+<td dir="auto" style="text-align:left">خلية ٣.٢</td>
+<td dir="auto" style="text-align:left">خلية ٣.٣</td>
+<td dir="auto" style="text-align:left">خلية ٣.٤</td>
+</tr>
+</tbody>
+</table>
+      </figure>
+"
+`;
+
+exports[`renderMarkdown golden snapshots > renders code-and-table.md 1`] = `
+"<p dir="auto">هذه عينة من code مكتوب بلغة python</p>
+<pre dir="auto" dir="auto"><code class="hljs language-python"><span class="hljs-comment"># --- SIDEBAR CONTROLS ---</span>
+st.sidebar.header(<span class="hljs-string">&quot;Simulation Parameters&quot;</span>)
+<span class="hljs-comment"># 1. Population Distribution Type</span>
+dist_type = st.sidebar.selectbox(
+    <span class="hljs-string">&quot;1. Select Population Distribution&quot;</span>, (<span class="hljs-string">&quot;Uniform&quot;</span>, <span class="hljs-string">&quot;Exponential&quot;</span>, <span class="hljs-string">&quot;Normal&quot;</span>, <span class="hljs-string">&quot;Beta&quot;</span>)
+)
+<span class="hljs-comment"># 2. Sample Size (n)</span>
+n_size = st.sidebar.slider(<span class="hljs-string">&quot;2. Sample Size (n)&quot;</span>, min_value=<span class="hljs-number">1</span>, max_value=<span class="hljs-number">100</span>, value=<span class="hljs-number">30</span>)
+<span class="hljs-comment"># 3. Number of Iterations (How many samples to take)</span>
+iterations = st.sidebar.slider(
+    <span class="hljs-string">&quot;3. Number of Iterations&quot;</span>, min_value=<span class="hljs-number">10</span>, max_value=<span class="hljs-number">1000</span>, value=<span class="hljs-number">100</span>
+)
+</code></pre>
+<p dir="auto">يمكن تغيير لون code block باستخدام أحد الأوامر التالية:</p>
+<ul dir="rtl">
+<li dir="auto">
+<p dir="auto">استخدام مكتبة HighlighJS</p>
+</li>
+<li dir="auto">
+<p dir="auto">يمكن الرجوع إلى</p>
+</li>
+</ul>
+<figure class="table-figure" id="tbl-1">
+        <figcaption dir="auto">جدول 1</figcaption>
+        <table dir="rtl"
+<thead>
+<tr>
+<th dir="auto" style="text-align:left">عنوان ١</th>
+<th dir="auto" style="text-align:left">عنوان ٢</th>
+<th dir="auto" style="text-align:left">عنوان ٣</th>
+<th dir="auto" style="text-align:left">عنوان ٤</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td dir="auto" style="text-align:left">خلية ١.١</td>
+<td dir="auto" style="text-align:left">خلية ١.٢</td>
+<td dir="auto" style="text-align:left">خلية ١.٣</td>
+<td dir="auto" style="text-align:left">خلية ١.٤</td>
+</tr>
+<tr>
+<td dir="auto" style="text-align:left">خلية ٢.١</td>
+<td dir="auto" style="text-align:left">خلية ٢.٢</td>
+<td dir="auto" style="text-align:left">خلية ٢.٣</td>
+<td dir="auto" style="text-align:left">خلية ٢.٤</td>
+</tr>
+<tr>
+<td dir="auto" style="text-align:left">خلية ٣.١</td>
+<td dir="auto" style="text-align:left">خلية ٣.٢</td>
+<td dir="auto" style="text-align:left">خلية ٣.٣</td>
+<td dir="auto" style="text-align:left">خلية ٣.٤</td>
+</tr>
+</tbody>
+</table>
+      </figure>
+"
+`;
+
+exports[`renderMarkdown golden snapshots > renders empty input without throwing 1`] = `""`;
+
+exports[`renderMarkdown golden snapshots > renders interlinear-gloss.md 1`] = `
+"<h1 dir="auto">التعليقات بين السطور (التعليق بين السطور)</h1>
+<p dir="auto">التعليق بين السطور هو طريقة لوضع شرح كلمة أو عبارة بين سطور النص الأصلي. وهي شائعة في كتب التفسير والنحو.</p>
+<h2 dir="auto">أمثلة</h2>
+<h3 dir="auto">من تفسير القرآن</h3>
+<p dir="auto">قال الله تعالى:</p>
+<p dir="auto"><span class="interlinear-unit"><span class="interlinear-base">الْحَمْدُ</span><span class="interlinear-gloss">لِلَّهِ</span></span> <span class="interlinear-unit"><span class="interlinear-base">رَبِّ</span><span class="interlinear-gloss">الْعَالَمِينَ</span></span> <span class="interlinear-unit"><span class="interlinear-base">الرَّحْمَـٰنِ</span><span class="interlinear-gloss">الرَّحِيمِ</span></span></p>
+<p dir="auto">حيث توضع التعليقات بين سطور النص بخط أصغر.</p>
+<h3 dir="auto">من كتب النحو</h3>
+<p dir="auto"><span class="interlinear-unit"><span class="interlinear-base">قَالَ</span><span class="interlinear-gloss">فِعْلٌ مَاضٍ</span></span> <span class="interlinear-unit"><span class="interlinear-base">الْمُؤَلِّفُ</span><span class="interlinear-gloss">فَاعِلٌ مَرْفُوعٌ</span></span>: <span class="interlinear-unit"><span class="interlinear-base">&quot;الْفِعْلُ</span><span class="interlinear-gloss">مَا دَلَّ عَلَى حَدَثٍ</span></span> <span class="interlinear-unit"><span class="interlinear-base">ثَلَاثَةُ</span><span class="interlinear-gloss">خَبَرٌ مَرْفُوعٌ</span></span> <span class="interlinear-unit"><span class="interlinear-base">أَنْوَاعٍ</span><span class="interlinear-gloss">مُضَافٌ إِلَيْهِ مَجْرُورٌ</span></span>&quot;</p>
+<h3 dir="auto">من متن الأجرومية</h3>
+<p dir="auto"><span class="interlinear-unit"><span class="interlinear-base">الْكَلَامُ</span><span class="interlinear-gloss">هُوَ اللَّفْظُ الْمُرَكَّبُ الْمُفِيدُ بِالْوَضْعِ</span></span> وَأَقْسَامُهُ ثَلَاثَةٌ: <span class="interlinear-unit"><span class="interlinear-base">اسْمٌ</span><span class="interlinear-gloss">مَا دَلَّ عَلَى مَعْنًى فِي نَفْسِهِ غَيْرِ مُقْتَرِنٍ بِزَمَانٍ</span></span> <span class="interlinear-unit"><span class="interlinear-base">وَفِعْلٌ</span><span class="interlinear-gloss">مَا دَلَّ عَلَى مَعْنًى فِي نَفْسِهِ مُقْتَرِنٍ بِزَمَانٍ</span></span> <span class="interlinear-unit"><span class="interlinear-base">وَحَرْفٌ</span><span class="interlinear-gloss">مَا دَلَّ عَلَى مَعْنًى فِي غَيْرِهِ</span></span></p>
+<h2 dir="auto">ملاحظات</h2>
+<ul dir="rtl">
+<li dir="auto">
+<p dir="auto">يوضع التعليق بين قوسين <span class="interlinear-unit"><span class="interlinear-base">\`</span><span class="interlinear-gloss">…</span></span>) مباشرة بعد الكلمة المراد شرحها</p>
+</li>
+<li dir="auto">
+<p dir="auto">يظهر التعليق بخط صغير أسفل الكلمة</p>
+</li>
+<li dir="auto">
+<p dir="auto">يمكن استخدام هذه الطريقة في المتن والشرح على حد سواء</p>
+</li>
+</ul>
+"
+`;
