@@ -43,35 +43,3 @@ export function classicalBookPlugin(md: MarkdownIt): void {
     });
   }
 }
-
-/**
- * Pre-processor: wrap hashiyah entry markers `(N)` in anchor spans.
- * Applied within hashiyah divs after md.render().
- *
- * In hashiyah content:  "(1) text"  →  "<span class="hashiyah-ref">(1)</span> text"
- * In matn/sharh content: "text(1)"  →  "text<span class="hashiyah-anchor">(1)</span>"
- */
-export function renderHashiyahRefs(html: string): string {
-  // Within .hashiyah divs: mark leading (N) markers
-  html = html.replace(
-    /(<div class="hashiyah">[\s\S]*?<\/div>)/g,
-    (block) =>
-      block.replace(
-        /\((\d+)\)/g,
-        '<span class="hashiyah-ref">($1)</span>',
-      ),
-  );
-  // Outside .hashiyah divs: mark (N) as hashiyah anchors
-  const hashRefRe = /\((\d+)\)/g;
-  const parts = html.split(/(<div class="hashiyah">[\s\S]*?<\/div>)/g);
-  return parts
-    .map((part, i) => {
-      if (i % 2 === 1) return part; // skip hashiyah blocks
-      return part.replace(hashRefRe, '<span class="hashiyah-anchor">($1)</span>');
-    })
-    .join('');
-}
-
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
