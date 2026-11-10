@@ -259,26 +259,13 @@
         catch { /* skip cross-origin */ }
       }
 
-      let katexCss = '';
-      try {
-        const resp = await fetch('https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css');
-        if (resp.ok) {
-          katexCss = await resp.text();
-          katexCss = katexCss.replace(/url\(fonts\//g, 'url(https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/fonts/');
-        }
-      } catch (e) {
-        console.warn('Failed to fetch KaTeX CSS:', e);
-      }
-
-      const fontHref = 'https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Noto+Sans+Arabic:wght@300;400;500;600;700&family=Readex+Pro:wght@300;400;500;600;700&display=swap';
-
+      // Fonts and KaTeX CSS are bundled with the app, so the print document
+      // stays fully offline: its stylesheets are copied from the live app above.
       const html = `<!DOCTYPE html>
 <html dir="rtl">
 <head>
 <meta charset="utf-8">
-<link rel="stylesheet" href="${fontHref}">
 <style>
-${katexCss}
 ${css}
 .preview code { background: #f0f0f0 !important; }
 .preview pre { background: #f5f5f5 !important; }
