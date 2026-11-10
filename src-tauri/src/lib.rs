@@ -4,7 +4,7 @@ use rusqlite::Connection;
 use serde::Serialize;
 use spellbook::Dictionary;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::sync::Mutex;
 use tauri::{Manager, State};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
@@ -116,12 +116,53 @@ async fn open_workspace(app: tauri::AppHandle, ws: Ws<'_>, path: String) -> Resu
 
 // ── File commands (all confined to trusted workspaces) ────────────────
 
+/// Asset names must be a single file name: no separators, drive prefixes,
+/// `..`, NUL, alternate data streams, or Windows device names.
+fn validate_file_name(file_name: &str) -> Result<String, String> {
+    if file_name.is_empty()
+        || file_name.contains('\0')
+        || file_name.contains(':')
+        || file_name.contains('/')
+        || file_name.contains('\\')
+    {
+        return Err("اسم ملف غير صالح".to_string());
+    }
+
+    let mut components = Path::new(file_name).components();
+    let Some(Component::Normal(name)) = components.next() else {
+        return Err("اسم ملف غير صالح".to_string());
+    };
+    if components.next().is_some() {
+        return Err("اسم ملف غير صالح: يجب أن يكون اسمًا واحدًا بدون مسارات".to_string());
+    }
+    let name = name
+        .to_str()
+        .ok_or_else(|| "اسم ملف غير صالح".to_string())?;
+    if name == "." || name == ".." || name != name.trim() || name.ends_with('.') {
+        return Err("اسم ملف غير صالح".to_string());
+    }
+    if is_reserved_windows_name(name) {
+        return Err("اسم ملف محجوز في النظام".to_string());
+    }
+    Ok(name.to_string())
+}
+
+fn is_reserved_windows_name(name: &str) -> bool {
+    let stem = name.split('.').next().unwrap_or(name).to_ascii_uppercase();
+    matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+        || (stem.len() == 4
+            && (stem.starts_with("COM") || stem.starts_with("LPT"))
+            && stem.as_bytes()[3].is_ascii_digit()
+            && stem.as_bytes()[3] != b'0')
+}
+
 #[tauri::command]
 fn copy_file_to_assets(ws: Ws, workspace: String, file_name: String, data: Vec<u8>) -> Result<String, String> {
+    let file_name = validate_file_name(&file_name)?;
     let assets_dir = ws.resolve(&workspace)?.join("assets");
     fs::create_dir_all(&assets_dir).map_err(|e| format!("mkdir assets: {}", e))?;
     let dest = ws.resolve(&assets_dir.join(&file_name).to_string_lossy())?;
-    fs::write(&dest, &data).map_err(|e| format!("write: {}", e))?;
+    write_atomic(&dest, &data)?;
     Ok(format!("assets/{}", file_name))
 }
 
@@ -159,8 +200,13 @@ fn read_text_file(ws: Ws, path: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-fn read_binary_file(ws: Ws, path: String) -> Result<Vec<u8>, String> {
-    fs::read(ws.resolve(&path)?).map_err(|e| format!("read binary: {}", e))
+async fn read_binary_file(app: tauri::AppHandle, path: String) -> Result<Vec<u8>, String> {
+    let path = app.state::<WorkspaceRegistry>().resolve(&path)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        fs::read(&path).map_err(|e| format!("read binary: {}", e))
+    })
+    .await
+    .map_err(|e| format!("read binary task: {}", e))?
 }
 
 #[tauri::command]
@@ -208,61 +254,102 @@ fn copy_file(ws: Ws, src: String, dest: String) -> Result<(), String> {
     write_atomic(&dest, &data)
 }
 
-#[tauri::command]
-fn export_pandoc(app: tauri::AppHandle, ws: Ws, workspace: String, markdown: String, format: String) -> Result<Vec<u8>, String> {
-    use std::process::Command;
-
+fn find_pandoc(app: &tauri::AppHandle) -> String {
     // Look for a bundled pandoc next to the app executable first,
     // then fall back to system PATH.
-    fn find_pandoc(app: &tauri::AppHandle) -> String {
-        if let Ok(exe) = std::env::current_exe() {
-            if let Some(dir) = exe.parent() {
-                let bundled = dir.join("pandoc.exe");
-                if bundled.exists() {
-                    return bundled.to_string_lossy().to_string();
-                }
-            }
-        }
-        if let Ok(res_dir) = app.path().resource_dir() {
-            let bundled = res_dir.join("pandoc.exe");
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            let bundled = dir.join("pandoc.exe");
             if bundled.exists() {
                 return bundled.to_string_lossy().to_string();
             }
         }
-        "pandoc".to_string()
     }
+    if let Ok(res_dir) = app.path().resource_dir() {
+        let bundled = res_dir.join("pandoc.exe");
+        if bundled.exists() {
+            return bundled.to_string_lossy().to_string();
+        }
+    }
+    "pandoc".to_string()
+}
 
-    let pandoc_bin = find_pandoc(&app);
+fn normalize_export_format(format: &str) -> Result<String, String> {
+    let normalized = format.to_ascii_lowercase();
+    match normalized.as_str() {
+        "docx" | "odt" | "epub" | "html" => Ok(normalized),
+        _ => Err(format!("صيغة تصدير غير مدعومة: {}", format)),
+    }
+}
 
-    let ws_path = ws.resolve(&workspace)?;
-    let in_path = ws.resolve(&ws_path.join(".temp_export.md").to_string_lossy())?;
-    let out_path = ws.resolve(&ws_path.join(format!(".temp_export.{}", format)).to_string_lossy())?;
+fn export_pandoc_blocking(
+    pandoc_bin: String,
+    workspace_path: PathBuf,
+    in_path: PathBuf,
+    out_path: PathBuf,
+    markdown: String,
+) -> Result<Vec<u8>, String> {
+    use std::process::Command;
 
     fs::write(&in_path, &markdown).map_err(|e| format!("write md error: {}", e))?;
 
-    let output = Command::new(&pandoc_bin)
-        .current_dir(&ws_path)
+    let output = match Command::new(&pandoc_bin)
+        .current_dir(&workspace_path)
         .arg(&in_path)
         .arg("-o")
         .arg(&out_path)
         .output()
-        .map_err(|e| format!(
-            "Pandoc not found. Please install Pandoc (https://pandoc.org/installing.html) or place pandoc.exe next to the application. Error: {}",
-            e
-        ))?;
+    {
+        Ok(output) => output,
+        Err(e) => {
+            let _ = fs::remove_file(&in_path);
+            return Err(format!(
+                "Pandoc not found. Please install Pandoc (https://pandoc.org/installing.html) or place pandoc.exe next to the application. Error: {}",
+                e
+            ));
+        }
+    };
 
     if !output.status.success() {
         let err = String::from_utf8_lossy(&output.stderr);
         let _ = fs::remove_file(&in_path);
+        let _ = fs::remove_file(&out_path);
         return Err(format!("Pandoc error: {}", err));
     }
 
-    let bytes = fs::read(&out_path).map_err(|e| format!("read output error: {}", e))?;
+    let bytes = match fs::read(&out_path) {
+        Ok(bytes) => bytes,
+        Err(e) => {
+            let _ = fs::remove_file(&in_path);
+            let _ = fs::remove_file(&out_path);
+            return Err(format!("read output error: {}", e));
+        }
+    };
 
     let _ = fs::remove_file(&in_path);
     let _ = fs::remove_file(&out_path);
 
     Ok(bytes)
+}
+
+#[tauri::command]
+async fn export_pandoc(
+    app: tauri::AppHandle,
+    workspace: String,
+    markdown: String,
+    format: String,
+) -> Result<Vec<u8>, String> {
+    let format = normalize_export_format(&format)?;
+    let pandoc_bin = find_pandoc(&app);
+    let ws_path = app.state::<WorkspaceRegistry>().resolve(&workspace)?;
+    let in_path = ws_path.join(".temp_export.md");
+    let out_path = ws_path.join(format!(".temp_export.{}", format));
+
+    tauri::async_runtime::spawn_blocking(move || {
+        export_pandoc_blocking(pandoc_bin, ws_path, in_path, out_path, markdown)
+    })
+    .await
+    .map_err(|e| format!("export task: {}", e))?
 }
 
 // ── Hadith ────────────────────────────────────────────────────────────
@@ -277,7 +364,7 @@ fn get_hadith_books() -> Vec<&'static str> {
 }
 
 #[tauri::command]
-fn read_hadith_book(app: tauri::AppHandle, book: String) -> Result<String, String> {
+async fn read_hadith_book(app: tauri::AppHandle, book: String) -> Result<String, String> {
     if !HADITH_BOOKS.contains(&book.as_str()) {
         return Err(format!("unknown book: {}", book));
     }
@@ -287,7 +374,11 @@ fn read_hadith_book(app: tauri::AppHandle, book: String) -> Result<String, Strin
         &format!("hadith/{}.json", book),
         &format!("docs/hadith-json-1.2.0/db/by_book/the_9_books/{}.json", book),
     );
-    fs::read_to_string(&path).map_err(|e| format!("read hadith {:?}: {}", path, e))
+    tauri::async_runtime::spawn_blocking(move || {
+        fs::read_to_string(&path).map_err(|e| format!("read hadith {:?}: {}", path, e))
+    })
+    .await
+    .map_err(|e| format!("hadith task: {}", e))?
 }
 
 // ── Arabic dictionary lookup ──────────────────────────────────────────
@@ -361,8 +452,45 @@ fn search_dict(
     Ok(results)
 }
 
+fn search_dictionary_blocking(
+    db_path: PathBuf,
+    query: &str,
+    dict_table: Option<&str>,
+    search_mode: Option<&str>,
+    dict_group: Option<&str>,
+) -> Result<Vec<DictEntry>, String> {
+    let conn =
+        Connection::open(&db_path).map_err(|e| format!("open db {:?}: {}", db_path, e))?;
+
+    let search_by_root = search_mode == Some("root");
+
+    let dicts: Vec<&(&str, &str, &str, &str)> = match dict_table {
+        Some(table) => {
+            let matched: Vec<_> = DICTS.iter().filter(|(t, _, _, _)| *t == table).collect();
+            if matched.is_empty() {
+                return Err(format!("unknown dictionary: {}", table));
+            }
+            matched
+        }
+        None => match dict_group.unwrap_or("all") {
+            "ar" => DICTS.iter().filter(|(_, _, _, g)| *g == "ar").collect(),
+            "ar_en" => DICTS.iter().filter(|(_, _, _, g)| *g == "ar_en").collect(),
+            _ => DICTS.iter().collect(),
+        },
+    };
+
+    let mut all = Vec::new();
+    for (table, _, _, _) in dicts {
+        let results = search_dict(&conn, query, table, search_by_root)?;
+        all.extend(results);
+    }
+    all.sort_by(|a, b| a.word.cmp(&b.word));
+    all.truncate(60);
+    Ok(all)
+}
+
 #[tauri::command]
-fn search_dictionary(
+async fn search_dictionary(
     app: tauri::AppHandle,
     query: String,
     dict_table: Option<String>,
@@ -370,36 +498,17 @@ fn search_dictionary(
     dict_group: Option<String>,    // "all" | "ar" | "ar_en", default "all"
 ) -> Result<Vec<DictEntry>, String> {
     let db_path = dict_db_path(&app);
-    let conn =
-        Connection::open(&db_path).map_err(|e| format!("open db {:?}: {}", db_path, e))?;
-
-    let search_by_root = search_mode.as_deref() == Some("root");
-
-    let dicts_iter: Box<dyn Iterator<Item = &(&str, &str, &str, &str)>> = match dict_table {
-        Some(table) => {
-            if !DICTS.iter().any(|(t, _, _, _)| *t == table) {
-                return Err(format!("unknown dictionary: {}", table));
-            }
-            Box::new(DICTS.iter().filter(move |(t, _, _, _)| *t == table))
-        }
-        None => {
-            let group = dict_group.as_deref().unwrap_or("all");
-            match group {
-                "ar" => Box::new(DICTS.iter().filter(|(_, _, _, g)| *g == "ar")),
-                "ar_en" => Box::new(DICTS.iter().filter(|(_, _, _, g)| *g == "ar_en")),
-                _ => Box::new(DICTS.iter()),
-            }
-        }
-    };
-
-    let mut all = Vec::new();
-    for (table, _, _, _) in dicts_iter {
-        let results = search_dict(&conn, &query, table, search_by_root)?;
-        all.extend(results);
-    }
-    all.sort_by(|a, b| a.word.cmp(&b.word));
-    all.truncate(60);
-    Ok(all)
+    tauri::async_runtime::spawn_blocking(move || {
+        search_dictionary_blocking(
+            db_path,
+            &query,
+            dict_table.as_deref(),
+            search_mode.as_deref(),
+            dict_group.as_deref(),
+        )
+    })
+    .await
+    .map_err(|e| format!("dictionary task: {}", e))?
 }
 
 #[tauri::command]
@@ -440,15 +549,13 @@ fn load_dictionary(app: &tauri::AppHandle) -> Result<Dictionary<spellbook::Defau
         .map_err(|e| format!("فشل تحميل المدقق الإملائي: {}", e))
 }
 
-#[tauri::command]
-fn check_spelling(app: tauri::AppHandle, state: tauri::State<'_, SpellcheckState>, text: String) -> Result<Vec<SpellError>, String> {
-    let dict = {
-        let mut d = state.dict.lock().map_err(|e| e.to_string())?;
-        if d.is_none() {
-            *d = Some(load_dictionary(&app)?);
-        }
-        d.as_ref().unwrap().clone()
-    };
+fn check_spelling_blocking(app: &tauri::AppHandle, text: &str) -> Result<Vec<SpellError>, String> {
+    let state = app.state::<SpellcheckState>();
+    let mut guard = state.dict.lock().map_err(|e| e.to_string())?;
+    if guard.is_none() {
+        *guard = Some(load_dictionary(app)?);
+    }
+    let dict = guard.as_ref().unwrap();
 
     let mut results: Vec<SpellError> = Vec::new();
     let mut seen = std::collections::HashSet::new();
@@ -471,6 +578,13 @@ fn check_spelling(app: tauri::AppHandle, state: tauri::State<'_, SpellcheckState
     }
 
     Ok(results)
+}
+
+#[tauri::command]
+async fn check_spelling(app: tauri::AppHandle, text: String) -> Result<Vec<SpellError>, String> {
+    tauri::async_runtime::spawn_blocking(move || check_spelling_blocking(&app, &text))
+        .await
+        .map_err(|e| format!("spellcheck task: {}", e))?
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
@@ -527,4 +641,61 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn validates_asset_file_names() {
+        assert_eq!(validate_file_name("image.png").unwrap(), "image.png");
+        assert_eq!(validate_file_name("صورة-1.png").unwrap(), "صورة-1.png");
+        assert_eq!(validate_file_name(".hidden").unwrap(), ".hidden");
+
+        for bad in [
+            "",
+            ".",
+            "..",
+            "../x",
+            "a/b.png",
+            "a\\b.png",
+            "/abs.png",
+            "C:\\x.png",
+            "C:x.png",
+            "stream:name",
+            "bad\0name",
+            "trailing.",
+            " leading",
+            "trailing ",
+        ] {
+            assert!(validate_file_name(bad).is_err(), "accepted {bad:?}");
+        }
+    }
+
+    #[test]
+    fn rejects_windows_reserved_file_names() {
+        for bad in ["CON", "con.png", "COM1.txt", "LPT9.log"] {
+            assert!(validate_file_name(bad).is_err(), "accepted {bad:?}");
+        }
+        for ok in ["COM0.txt", "CONSOLE.txt", "LPT0.log"] {
+            assert!(validate_file_name(ok).is_ok(), "rejected {ok:?}");
+        }
+    }
+
+    #[test]
+    fn normalizes_only_supported_export_formats() {
+        for (input, expected) in [
+            ("docx", "docx"),
+            ("DOCX", "docx"),
+            ("odt", "odt"),
+            ("epub", "epub"),
+            ("html", "html"),
+        ] {
+            assert_eq!(normalize_export_format(input).unwrap(), expected);
+        }
+        for bad in ["pdf", "", "docx ", " docx", "../docx", "docx\0"] {
+            assert!(normalize_export_format(bad).is_err(), "accepted {bad:?}");
+        }
+    }
 }
