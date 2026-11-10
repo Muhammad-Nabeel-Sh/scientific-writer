@@ -85,7 +85,6 @@ exports[`renderMarkdown golden snapshots > renders classical-matn-salah.md 1`] =
 <div class="matn chapter">
 <h1 dir="auto">كتاب الصلاة</h1>
 </div>
-</div>
 <div class="matn">
 <p dir="auto">قال الله تعالى: {إن الصلاة كانت على المؤمنين كتاباً موقوتاً}</p>
 <p dir="auto">وقال النبي صلى الله عليه وسلم: «بني الإسلام على خمس: شهادة أن لا إله إلا الله وأن محمداً رسول الله، وإقام الصلاة، وإيتاء الزكاة، وصوم رمضان، وحج البيت»</p>
@@ -107,7 +106,7 @@ exports[`renderMarkdown golden snapshots > renders classical-matn-salah.md 1`] =
 <p dir="auto">(٣) استقبال القبلة شرط من شروط الصلاة للقادر، إلا في حالة الخوف والشدة.</p>
 <p dir="auto">(٤) الطمأنينة: السكون في كل ركن من أركان الصلاة.</p>
 </div>
-<p dir="auto">:::</p>
+</div>
 "
 `;
 
@@ -116,7 +115,6 @@ exports[`renderMarkdown golden snapshots > renders classical-matn-taharah.md 1`]
 <div class="matn chapter">
 <h1 dir="auto">كتاب الطهارة</h1>
 <p dir="auto">بسم الله الرحمن الرحيم</p>
-</div>
 </div>
 <div class="matn">
 <p dir="auto">قال الله تعالى: {يا أيها الذين آمنوا إذا قمتم إلى الصلاة فاغسلوا وجوهكم وأيديكم إلى المرافق وامسحوا برؤوسكم وأرجلكم إلى الكعبين}</p>
@@ -140,7 +138,7 @@ exports[`renderMarkdown golden snapshots > renders classical-matn-taharah.md 1`]
 <p dir="auto">(٣) اختلف الفقهاء في حكم مسح الرأس: فذهب الشافعية إلى وجوب مسح أقل ما يطلق عليه اسم مسح، وذهب الحنابلة إلى وجوب مسح جميع الرأس.</p>
 <p dir="auto">(٤) الغسل: إفاضة الماء على جميع البدن بنية.</p>
 </div>
-<p dir="auto">:::</p>
+</div>
 "
 `;
 
@@ -148,7 +146,6 @@ exports[`renderMarkdown golden snapshots > renders classical-sharh-salah.md 1`] 
 "<div class="classical-page">
 <div class="matn chapter">
 <h1 dir="auto">شرح كتاب الصلاة</h1>
-</div>
 </div>
 <div class="sharh">
 <h2 dir="auto">مقدمة شرح الصلاة</h2>
@@ -186,7 +183,7 @@ exports[`renderMarkdown golden snapshots > renders classical-sharh-salah.md 1`] 
 <p dir="auto">(٢) القدرة المعتبرة في القيام: القدرة الحقيقية على الوقوف بدون ضرر.</p>
 <p dir="auto">(٣) الطمأنينة: أن يستقر المصفي في كل ركن حتى تطمئن مفاصله.</p>
 </div>
-<p dir="auto">:::</p>
+</div>
 "
 `;
 
@@ -194,7 +191,6 @@ exports[`renderMarkdown golden snapshots > renders classical-sharh-taharah.md 1`
 "<div class="classical-page">
 <div class="matn chapter">
 <h1 dir="auto">شرح كتاب الطهارة</h1>
-</div>
 </div>
 <div class="sharh">
 <h2 dir="auto">مقدمة الشرح</h2>
@@ -216,7 +212,7 @@ exports[`renderMarkdown golden snapshots > renders classical-sharh-taharah.md 1`
 <p dir="auto">(٢) اختلف الفقهاء في الماء القليل إذا ولغ فيه الكلب. والراجح أنه ينجس.</p>
 <p dir="auto">(٣) الماء الكثير إذا تغيرت أوصافه بنجاسة فإنه ينجس عند جمهور الفقهاء.</p>
 </div>
-<p dir="auto">:::</p>
+</div>
 <h2 dir="auto">خلاصة الشرح</h2>
 <p dir="auto">هذا شرح موجز، ومن أراد التوسع فعليه بالمبسوطات وشروح المختصرات. والحمد لله رب العالمين.</p>
 "
