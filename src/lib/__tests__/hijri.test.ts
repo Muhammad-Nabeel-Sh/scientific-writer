@@ -13,6 +13,10 @@ import {
   toHijri,
 } from '$lib/hijri';
 
+function localDate(d: Date): [number, number, number] {
+  return [d.getFullYear(), d.getMonth() + 1, d.getDate()];
+}
+
 describe('hijri calendar', () => {
   it('converts 1 Muharram 1445 (Gregorian → Hijri)', () => {
     expect(toHijri(new Date(2023, 6, 19))).toEqual({
@@ -40,11 +44,23 @@ describe('hijri calendar', () => {
     expect(d.getSeconds()).toBe(0);
   });
 
-  // Found during P0.4: @umalqura/core returns a 0-based Gregorian month
-  // (July = 6), but toGregorian() calls `new Date(gy, gm - 1, gd)`, subtracting
-  // a month that was already zero-based. Every Hijri → Gregorian conversion is
-  // therefore one month early (e.g. 1 Muharram 1445 → 19 June 2023, not July).
-  it.todo('toGregorian(1445, 1, 1) should be 19 July 2023, not 19 June 2023');
+  it('converts 1 Muharram 1445 to 19 July 2023', () => {
+    expect(localDate(toGregorian(1445, 1, 1))).toEqual([2023, 7, 19]);
+  });
+
+  it('converts 1 Ramadan 1445 to 11 March 2024', () => {
+    expect(localDate(toGregorian(1445, 9, 1))).toEqual([2024, 3, 11]);
+  });
+
+  it('converts 1 Muharram 1446 to 7 July 2024', () => {
+    expect(localDate(toGregorian(1446, 1, 1))).toEqual([2024, 7, 7]);
+  });
+
+  it('round-trips Hijri → Gregorian → Hijri', () => {
+    for (const [y, m, d] of [[1445, 1, 1], [1445, 9, 1], [1446, 1, 1], [1445, 12, 30]] as const) {
+      expect(toHijri(toGregorian(y, m, d))).toMatchObject({ year: y, month: m, day: d });
+    }
+  });
 
   it('converts 1 Muharram 1446 (Gregorian → Hijri)', () => {
     expect(toHijri(new Date(2024, 6, 7))).toEqual({

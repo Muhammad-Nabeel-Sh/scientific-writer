@@ -37,8 +37,10 @@ export function toHijri(date: Date): HijriDate {
 }
 
 export function toGregorian(hy: number, hm: number, hd: number): Date {
-  const { gy, gm, gd } = umalqura.$.hijriToGregorian(hy, hm, hd);
-  return new Date(gy, gm - 1, gd);
+  // Use the library's own Date constructor. hijriToGregorian() returns a
+  // zero-based Gregorian month, so manually doing `new Date(gy, gm - 1, gd)`
+  // shifted every converted date one month early.
+  return umalqura.$.toDate(hy, hm, hd);
 }
 
 export function getTodayHijri(): HijriDate {
