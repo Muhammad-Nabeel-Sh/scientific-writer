@@ -1,0 +1,52 @@
+[
+  {
+    "id": "82a396d6-899a-4bd0-806a-d517af808f4b",
+    "name": "بحث علمي",
+    "type": "folder",
+    "expanded": true,
+    "children": [
+      {
+        "id": "f774cf1e-6209-4ec9-80eb-1cae6cdbfd1c",
+        "name": "الملخص",
+        "type": "note",
+        "expanded": true
+      },
+      {
+        "id": "24b7e1f0-0a9d-4354-98d0-acd947e39a07",
+        "name": "المقدمة",
+        "type": "note",
+        "expanded": true
+      },
+      {
+        "id": "e9c743fe-60b0-40a8-87e3-64ff2e3287e9",
+        "name": "منهجية البحث",
+        "type": "note",
+        "expanded": true
+      },
+      {
+        "id": "515fdea6-5428-4a07-95bb-19a39a777d20",
+        "name": "النتائج",
+        "type": "note",
+        "expanded": true
+      },
+      {
+        "id": "1bd6a82b-97ba-4445-a6a1-7f3ee4b18967",
+        "name": "مناقشة النتائج",
+        "type": "note",
+        "expanded": true
+      },
+      {
+        "id": "a783fb38-fc1b-41a3-96c3-f68bd069687e",
+        "name": "الخاتمة",
+        "type": "note",
+        "expanded": true
+      },
+      {
+        "id": "f95ec0a7-19fa-485a-b569-dff561bc1d8f",
+        "name": "المراجع",
+        "type": "note",
+        "expanded": true
+      }
+    ]
+  }
+]

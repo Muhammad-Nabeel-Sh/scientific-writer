@@ -23,3 +23,6 @@ src-tauri/target/
 
 # Pandoc temporary exports
 .temp_export.*
+
+# Workspace auto-save backups
+.backups/

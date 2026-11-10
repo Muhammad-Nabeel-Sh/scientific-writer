@@ -1,0 +1,57 @@
+[
+  {
+    "id": "e7f64aee-be25-4eee-9172-8aa01191a831",
+    "name": "كتاب تراثي",
+    "type": "folder",
+    "expanded": true,
+    "children": [
+      {
+        "id": "c10444cc-1d15-4b4a-b457-2d54d5ba7a33",
+        "name": "التعريف بالكتاب",
+        "type": "note",
+        "expanded": true
+      },
+      {
+        "id": "11191414-5a36-45ea-be69-df44ba996ae9",
+        "name": "المتن: باب الطهارة",
+        "type": "note",
+        "expanded": true
+      },
+      {
+        "id": "6d3e39e7-ccd6-4be8-ae53-5260fbd6ee94",
+        "name": "المتن: باب الصلاة",
+        "type": "note",
+        "expanded": true
+      },
+      {
+        "id": "eef99bf5-dff9-47eb-9fa1-4fcd4448d202",
+        "name": "الشرح: شرح باب الطهارة",
+        "type": "note",
+        "expanded": true
+      },
+      {
+        "id": "ac4730d9-dc30-4680-8ef7-9778921196d7",
+        "name": "الشرح: شرح باب الصلاة",
+        "type": "note",
+        "expanded": true
+      },
+      {
+        "id": "a1d4ac52-00f0-41db-878e-a4a54e0fb022",
+        "name": "الحواشي",
+        "type": "note",
+        "expanded": true
+      },
+      {
+        "id": "7b61bb00-f83f-4694-9877-1de035d50603",
+        "name": "التعليقات بين السطور",
+        "type": "note",
+        "expanded": true
+      }
+    ]
+  },
+  {
+    "id": "90cb1512-45d7-4714-94d4-9e04251a06c1",
+    "name": "ملاحظة جديدة.md",
+    "type": "note"
+  }
+]
