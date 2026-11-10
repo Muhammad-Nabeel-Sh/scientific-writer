@@ -10,6 +10,7 @@
   import { noteSaver, REFERENCES_ID } from "$lib/note-saver";
   import { installExternalLinkHandler } from "$lib/external-links";
   import { onMount } from "svelte";
+  import { getCurrentWindow } from "@tauri-apps/api/window";
   import { initWorkspace, readNote, ensureBibliography, backupNote, clearWorkspaceCache } from "$lib/fs";
   import { parseBibTeX } from "$lib/bibliography";
   import { buildBacklinksIndex, updateBacklinksForNote } from "$lib/backlinks";
@@ -201,7 +202,41 @@
     }
   }
 
-  onMount(() => installExternalLinkHandler());
+  onMount(() => {
+    const uninstallLinks = installExternalLinkHandler();
+    let unlisten: (() => void) | undefined;
+    let disposed = false;
+    let closing = false;
+
+    // Flush the debounced save queue before the window actually closes, so
+    // keystrokes from the last 500 ms are never lost. The first close request
+    // is cancelled; after flushing we close again and let the second pass
+    // through (the flag prevents an infinite loop).
+    getCurrentWindow()
+      .onCloseRequested(async (event) => {
+        if (closing) return;
+        closing = true;
+        event.preventDefault();
+        try {
+          await noteSaver.flush();
+          await getCurrentWindow().close();
+        } catch (e) {
+          closing = false;
+          console.error("[window] close after flush failed:", e);
+        }
+      })
+      .then((fn) => {
+        if (disposed) fn();
+        else unlisten = fn;
+      })
+      .catch((e) => console.error("[window] close handler:", e));
+
+    return () => {
+      disposed = true;
+      unlisten?.();
+      uninstallLinks();
+    };
+  });
 
   function startDrag(e: MouseEvent, target: string) {
     isDragging = true;
