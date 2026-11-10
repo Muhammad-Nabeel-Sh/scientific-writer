@@ -28,6 +28,8 @@
   import DictionaryDialog from "./DictionaryDialog.svelte";
   import CodeDialog from "./CodeDialog.svelte";
   import SpellCheckDialog from "./SpellCheckDialog.svelte";
+  import TableEditor from "./TableEditor.svelte";
+  import { extractTableAt, tableToMarkdown } from "$lib/table-utils";
 
   import TypographySettings from "./TypographySettings.svelte";
 
@@ -50,6 +52,10 @@
   let showDictionaryDialog = false;
   let showCodeDialog = false;
   let showSpellCheckDialog = false;
+  let showTableEditor = false;
+  let editTableStart = 0;
+  let editTableEnd = 0;
+  let editTableData: any = null;
 
   let showWikiLinkDialog = false;
   let showTypographyDialog = false;
@@ -377,7 +383,16 @@
             return;
           case "insertTable":
             e.preventDefault();
-            showTableDialog = true;
+            const ta_ = textareaRef;
+            const ctx = extractTableAt(ta_.value, ta_.selectionStart);
+            if (ctx) {
+              editTableData = ctx.table;
+              editTableStart = ctx.start;
+              editTableEnd = ctx.end;
+              showTableEditor = true;
+            } else {
+              showTableDialog = true;
+            }
             return;
           case "insertLink":
             e.preventDefault();
@@ -676,7 +691,18 @@
         /></svg
       >
     </button>
-    <button class="tb" title="جدول" on:click={() => (showTableDialog = true)}>
+    <button class="tb" title="جدول" on:click={() => {
+      const ta_ = textareaRef;
+      const ctx = extractTableAt(ta_.value, ta_.selectionStart);
+      if (ctx) {
+        editTableData = ctx.table;
+        editTableStart = ctx.start;
+        editTableEnd = ctx.end;
+        showTableEditor = true;
+      } else {
+        showTableDialog = true;
+      }
+    }}>
       <svg
         viewBox="0 0 24 24"
         stroke="currentColor"
@@ -878,6 +904,31 @@
         pushHistory();
         textareaRef.value = textareaRef.value.replaceAll(word, replacement);
         textareaRef.dispatchEvent(new Event("input", { bubbles: true }));
+      }}
+    />
+  {/if}
+  {#if showTableEditor && editTableData}
+    <TableEditor
+      table={editTableData}
+      start={editTableStart}
+      end={editTableEnd}
+      on:save={(e) => {
+        const { table, start, end } = e.detail;
+        pushHistory();
+        const before = textareaRef.value.substring(0, start);
+        const after = textareaRef.value.substring(end);
+        const md = tableToMarkdown(table);
+        textareaRef.value = before + md + after;
+        const pos = before.length + md.length;
+        textareaRef.selectionStart = textareaRef.selectionEnd = pos;
+        textareaRef.focus();
+        textareaRef.dispatchEvent(new Event("input", { bubbles: true }));
+        showTableEditor = false;
+        editTableData = null;
+      }}
+      on:cancel={() => {
+        showTableEditor = false;
+        editTableData = null;
       }}
     />
   {/if}
