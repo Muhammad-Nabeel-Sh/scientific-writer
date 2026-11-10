@@ -15,6 +15,9 @@ src-tauri/db/
 # Visual Studio caches
 .vs/
 
+# Local agent workspace (Claude/other tooling)
+.claude/
+
 # Rust build artifacts
 src-tauri/target/
 

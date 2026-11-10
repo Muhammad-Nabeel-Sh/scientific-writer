@@ -5,7 +5,7 @@
 - **Frontend**: SvelteKit 2 with `@sveltejs/adapter-static` (SPA mode, SSR disabled)
 - **Language**: TypeScript (frontend), Rust (backend)
 - **Bundler**: Vite 6, dev server locked to port 1420
-- **Markdown**: markdown-it v14 + `@traptitech/markdown-it-katex` + highlight.js
+- **Markdown**: markdown-it v14 + in-repo plugins (`src/lib/md/`) + a single `katex@0.17` + highlight.js
 - **Fuzzy search**: fuse.js v7
 - **Hijri calendar**: @umalqura/core
 - **Word export**: docx (via Pandoc)
@@ -18,7 +18,7 @@ scientific-writer/
 │   ├── App.svelte        # Main three-panel layout + SplashScreen
 │   ├── app.css           # Global styles (RTL, dark theme, KaTeX)
 │   ├── components/       # 21 Svelte components (Editor, panels, dialogs)
-│   ├── lib/              # Stores, FS wrapper, markdown, search, templates…
+│   ├── lib/              # Stores, FS wrapper, markdown pipeline (md/), search, templates…
 │   └── routes/           # +page.svelte, +layout.svelte, +layout.ts
 ├── src-tauri/            # Rust Tauri backend
 │   ├── src/lib.rs        # 20 commands: workspace, file I/O, assets, hadith, dictionary, spellcheck, pandoc
