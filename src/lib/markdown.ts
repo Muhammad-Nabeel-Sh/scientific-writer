@@ -1,232 +1,97 @@
-import MarkdownIt from 'markdown-it';
-import katex from '@traptitech/markdown-it-katex';
-import hljs from 'highlight.js';
+/**
+ * Markdown → HTML for the preview and print view.
+ *
+ * All syntax lives in markdown-it plugins under `src/lib/md/`; this module
+ * only runs the shared parser and returns the HTML together with everything
+ * the render discovered (equations, figures, tables, citations, warnings).
+ * There is no module-level render state.
+ */
 import 'katex/dist/katex.min.css';
 import type { BibEntry } from './bibliography';
-import { replaceCitations, generateBibliographyHtml } from './bibliography';
-import { academicBlocksPlugin, resetBlockState, resolveBlockRefs } from './blocks';
-import { footnotePlugin } from './footnotes';
-import { classicalBookPlugin, renderInterlinearGloss } from './markdown-classical';
+import { generateBibliographyHtml } from './bibliography';
+import { getParser, parse } from './md/parser';
+import {
+  createEnv,
+  type BlockInfo,
+  type DigitStyle,
+  type EquationInfo,
+  type FigureInfo,
+  type RenderOptions,
+  type RenderWarning,
+  type TableInfo,
+} from './md/env';
 
-export type DigitStyle = 'auto' | 'eastern' | 'western';
+export type { DigitStyle, EquationInfo, FigureInfo, TableInfo, BlockInfo, RenderOptions, RenderWarning };
 
-const ARABIC_INDIC = '٠١٢٣٤٥٦٧٨٩';
-const arabicRe = /[\u0600-\u06FF]/;
-
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+export interface DocumentAnalysis {
+  equations: EquationInfo[];
+  figures: FigureInfo[];
+  tables: TableInfo[];
+  blocks: BlockInfo[];
+  citations: { used: string[]; missing: string[] };
+  warnings: RenderWarning[];
 }
 
-function renderPoem(str: string): string {
-  const lines = str.trim().split('\n');
-  const verses = lines
-    .filter(l => l.trim())
-    .map(l => {
-      const parts = l.split('||');
-      if (parts.length >= 2) {
-        return { sadr: parts[0].trim(), ajuz: parts[1].trim() };
-      }
-      return { sadr: l.trim(), ajuz: '' };
-    });
-  if (verses.length === 0) return '';
-
-  const inner = verses.map(v => {
-    if (!v.ajuz) {
-      return `<div class="poem-verse single"><span class="verse-sadr">${escapeHtml(v.sadr)}</span></div>`;
-    }
-    return `<div class="poem-verse"><span class="verse-sadr">${escapeHtml(v.sadr)}</span><div class="verse-gap"></div><span class="verse-ajuz">${escapeHtml(v.ajuz)}</span></div>`;
-  }).join('\n');
-
-  return `<div class="arabic-poem" dir="rtl">\n${inner}\n</div>`;
+export interface RenderResult extends DocumentAnalysis {
+  html: string;
 }
 
-const md = new MarkdownIt({
-  html: true,
-  linkify: true,
-  typographer: true,
-  breaks: true,
-  highlight(str: string, lang: string): string {
-    if (lang === 'poetry') {
-      return renderPoem(str);
-    }
-    if (lang && hljs.getLanguage(lang)) {
-      try {
-        const hl = hljs.highlight(str, { language: lang, ignoreIllegals: true });
-        return `<pre dir="auto"><code class="hljs language-${lang}">${hl.value}</code></pre>`;
-      } catch { /* fall through */ }
-    }
-    return `<pre dir="auto"><code class="hljs">${md.utils.escapeHtml(str)}</code></pre>`;
-  },
-}).use(katex, {
-  throwOnError: false,
-  displayMode: true,
-  strict: "ignore",
-}).use(academicBlocksPlugin).use(footnotePlugin).use(classicalBookPlugin);
+const RENDER_ERROR_HTML = '<p style="color:#ff6b6b">خطأ في تحليل المستند</p>';
 
-export interface EquationInfo {
-  id: string;
-  number: number;
-  label?: string;
-  latex: string;
+export function renderDocument(text: string, options: RenderOptions = {}): RenderResult {
+  const md = getParser();
+  const env = createEnv(options);
+  let html: string;
+  try {
+    const tokens = md.parse(text, env);
+    html = md.renderer.render(tokens, md.options, env);
+  } catch (e) {
+    env.warnings.push({ kind: 'render', message: e instanceof Error ? e.message : String(e) });
+    html = RENDER_ERROR_HTML;
+  }
+  const bib = options.bibEntries ?? [];
+  if (bib.length > 0 && (env.citations.used.length > 0 || env.citations.missing.length > 0)) {
+    html += generateBibliographyHtml(env.citations.used, bib, env.citations.missing);
+  }
+  return {
+    html,
+    equations: env.equations,
+    figures: env.figures,
+    tables: env.tables,
+    blocks: env.blocks,
+    citations: env.citations,
+    warnings: env.warnings,
+  };
+}
+
+/** HTML only. Kept for callers that need nothing else. */
+export function renderMarkdown(text: string, bibEntries?: BibEntry[], digitStyle?: DigitStyle): string {
+  return renderDocument(text, { bibEntries, digitStyle }).html;
+}
+
+/** Numbering, labels and citations without producing HTML (no KaTeX work). */
+export function analyzeMarkdown(text: string, options: RenderOptions = {}): DocumentAnalysis {
+  const { env } = parse(text, options);
+  return {
+    equations: env.equations,
+    figures: env.figures,
+    tables: env.tables,
+    blocks: env.blocks,
+    citations: env.citations,
+    warnings: env.warnings,
+  };
 }
 
 export function parseEquationsFromText(text: string): EquationInfo[] {
-  const result: EquationInfo[] = [];
-  let num = 0;
-  text.replace(/(```[\s\S]*?```)|(\$\$[\s\S]*?\$\$(?:\s*\{#eq:(\w+)\}\s*)?)/g, (match, fence, math, label) => {
-    if (fence) return match;
-    num++;
-    const latexMatch = match.match(/\$\$([\s\S]*?)\$\$/);
-    const latex = latexMatch ? latexMatch[1].trim() : '';
-    if (label) {
-      result.push({ id: `eq:${label}`, number: num, label, latex });
-    } else {
-      result.push({ id: `eq-${num}`, number: num, latex });
-    }
-    return match;
-  });
-  return result;
-}
-
-let figCounter = 0;
-let figUsedIds = new Set<string>();
-let equationInfos: EquationInfo[] = [];
-
-function resetFigureState() {
-  figCounter = 0;
-  figUsedIds = new Set<string>();
-  equationInfos = [];
-}
-
-export function getLastEquationResult(): EquationInfo[] {
-  return equationInfos;
-}
-
-function genFigureId(src: string): string {
-  let base = src.replace(/^.*[/\\]/, '').replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '-') || 'figure';
-  let id = `fig-${base}`;
-  if (figUsedIds.has(id)) {
-    let i = 2;
-    while (figUsedIds.has(`fig-${base}-${i}`)) i++;
-    id = `fig-${base}-${i}`;
-  }
-  figUsedIds.add(id);
-  return id;
+  return analyzeMarkdown(text).equations;
 }
 
 export function parseFigures(markdown: string): FigureInfo[] {
-  const figures: FigureInfo[] = [];
-  const used = new Set<string>();
-  const re = /!\[([^\]]*)\]\(([^)]+)\)/g;
-  let m: RegExpExecArray | null;
-  let num = 0;
-  while ((m = re.exec(markdown)) !== null) {
-    num++;
-    const src = m[2];
-    const caption = m[1].trim();
-    let base = src.replace(/^.*[/\\]/, '').replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '-') || 'figure';
-    let id = `fig-${base}`;
-    if (used.has(id)) {
-      let i = 2;
-      while (used.has(`fig-${base}-${i}`)) i++;
-      id = `fig-${base}-${i}`;
-    }
-    used.add(id);
-    figures.push({ id, number: num, src, caption });
-  }
-  return figures;
-}
-
-// Override image renderer — every image becomes a centered figure with auto-numbered caption
-md.renderer.rules.image = (tokens, idx, options, env, self) => {
-  const token = tokens[idx];
-  const src = token.attrGet('src') || '';
-  const alt = token.content || '';
-  const title = token.attrGet('title');
-
-  figCounter++;
-  const hasArabic = /[\u0600-\u06FF]/.test(alt);
-  const label = hasArabic ? 'الشكل' : 'Figure';
-  const id = genFigureId(src);
-  const titleAttr = title ? ` title="${md.utils.escapeHtml(title)}"` : '';
-  const captionText = alt ? `: ${md.utils.escapeHtml(alt)}` : '';
-
-  return `<figure class="figure" id="${id}">
-    <img src="${md.utils.escapeHtml(src)}" alt="${md.utils.escapeHtml(alt)}" loading="lazy"${titleAttr} />
-    <figcaption dir="auto">${label} ${figCounter}${captionText}</figcaption>
-  </figure>`;
-};
-
-function countDisplayMathDelimiters(line: string): number {
-  // Ignore $$ inside inline code and escaped \$\$.
-  const withoutCode = line.replace(/`[^`]*`/g, '');
-  const withoutEscaped = withoutCode.replace(/\\\$\$/g, '');
-  return (withoutEscaped.match(/\$\$/g) || []).length;
-}
-
-function convertArabicDigits(text: string, style: DigitStyle = 'auto'): string {
-  if (style === 'western') return text;
-  const shouldConvert = style === 'eastern' || (style === 'auto' && arabicRe.test(text));
-  if (!shouldConvert) return text;
-  // Replace digits outside inline code, math, URLs, citations, equation labels, equation references, and footnote refs
-  return text.split(/(`[^`]*`|\$\$[^$]*\$\$|\$[^$]*\$|!\[[^\]]*\]\([^)]*\)|\[[^\]]*\]\([^)]*\)|\[\@[^\]]*\]|\[ref:[^\]]*\]|\{#eq:[^}]*\}|\[\^[^\]]*\])/g).map((part, i) => {
-    if (i % 2 === 0) {
-      return part.replace(/[0-9]/g, d => ARABIC_INDIC[+d]);
-    }
-    return part;
-  }).join('');
-}
-
-export interface FigureInfo {
-  id: string;
-  number: number;
-  src: string;
-  caption: string;
-}
-
-export interface TableInfo {
-  id: string;
-  number: number;
-  caption: string;
+  return analyzeMarkdown(markdown).figures;
 }
 
 export function parseTables(markdown: string): TableInfo[] {
-  const tables: TableInfo[] = [];
-  const lines = markdown.split('\n');
-  let num = 0;
-  for (let i = 0; i < lines.length; i++) {
-    if (lines[i].trimStart().startsWith('|')) {
-      num++;
-      tables.push({
-        id: `tbl-${num}`,
-        number: num,
-        caption: '',
-      });
-      continue;
-    }
-    const capMatch = lines[i].match(/^(?:Table|جدول):\s*(.*)/);
-    if (capMatch) {
-      let caption = capMatch[1].trim();
-      let j = i + 1;
-      while (j < lines.length && !lines[j].trimStart().startsWith('|')) {
-        if (lines[j].trim()) {
-          if (caption) caption += ' ';
-          caption += lines[j].trim();
-        }
-        j++;
-      }
-      if (j < lines.length && lines[j].trimStart().startsWith('|')) {
-        num++;
-        tables.push({
-          id: `tbl-${num}`,
-          number: num,
-          caption,
-        });
-        i = j;
-      }
-    }
-  }
-  return tables;
+  return analyzeMarkdown(markdown).tables;
 }
 
 export interface OutlineItem {
@@ -264,190 +129,4 @@ export function parseOutline(markdown: string): OutlineItem[] {
     charOffset += line.length + 1;
   }
   return items;
-}
-
-let lastUsedKeys: string[] = [];
-let lastMissingKeys: string[] = [];
-
-export function getLastCitationResult(): { usedKeys: string[]; missingKeys: string[] } {
-  return { usedKeys: lastUsedKeys, missingKeys: lastMissingKeys };
-}
-
-export function renderMarkdown(text: string, bibEntries?: BibEntry[], digitStyle?: DigitStyle): string {
-  try {
-    resetFigureState();
-    lastUsedKeys = [];
-    lastMissingKeys = [];
-
-    const style = digitStyle || 'auto';
-
-    // Pre-process: convert digits (configurable) and turn soft returns into hard returns.
-    // Multi-line $$…$$ blocks are left untouched: converting their digits corrupts
-    // the TeX, and inserting blank lines inside them breaks the math block.
-    const lines = text.split('\n');
-    let inFence = false;
-    let inDisplayMath = false;
-    const resultLines: string[] = [];
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      const isFenceLine = line.trimStart().startsWith('```');
-      if (isFenceLine) {
-        inFence = !inFence;
-      }
-
-      const wasInDisplayMath = inDisplayMath;
-      const delimiters = !inFence && !isFenceLine ? countDisplayMathDelimiters(line) : 0;
-      if (delimiters % 2 === 1) inDisplayMath = !inDisplayMath;
-      const isMathLine = !inFence && !isFenceLine && (wasInDisplayMath || delimiters > 0);
-
-      if (!inFence && !isFenceLine && !/^ {4}/.test(line) && !isMathLine) {
-        resultLines.push(convertArabicDigits(line, style));
-      } else {
-        resultLines.push(line);
-      }
-      if (!inFence && !isFenceLine && !isMathLine && !line.trimStart().startsWith('|')) {
-        resultLines.push(''); // blank line → hard return (new paragraph)
-      }
-    }
-
-    // Extract table captions (remove caption lines, store text)
-    const captionMap = new Map<number, string>();
-    const cleanLines: string[] = [];
-    let rawTblIdx = 0;
-    for (let i = 0; i < resultLines.length; i++) {
-      const capMatch = resultLines[i].match(/^(?:Table|جدول):\s*(.*)/);
-      if (capMatch) {
-        let caption = capMatch[1].trim();
-        let j = i + 1;
-        while (j < resultLines.length && !resultLines[j].trimStart().startsWith('|')) {
-          if (resultLines[j].trim()) {
-            if (caption) caption += ' ';
-            caption += resultLines[j].trim();
-          }
-          j++;
-        }
-        if (j < resultLines.length && resultLines[j].trimStart().startsWith('|')) {
-          captionMap.set(rawTblIdx, caption);
-          i = j - 1; // will be incremented to the table-start line
-          continue;
-        }
-      }
-      if (resultLines[i].trimStart().startsWith('|')) rawTblIdx++;
-      cleanLines.push(resultLines[i]);
-    }
-    let processed = cleanLines.join('\n');
-
-    // Equation parsing: extract $$...$$ blocks outside code fences, strip {#eq:label}
-    // Uses alternation to match fences (pass through) or math (extract)
-    let eqNum = 0;
-    equationInfos = [];
-    processed = processed.replace(/(```[\s\S]*?```)|(\$\$[\s\S]*?\$\$(?:\s*\{#eq:(\w+)\}\s*)?)/g, (match, fence, math, label) => {
-      if (fence) return fence;
-      eqNum++;
-      const latexMatch = match.match(/\$\$([\s\S]*?)\$\$/);
-      const latex = latexMatch ? latexMatch[1].trim() : '';
-      if (label) {
-        equationInfos.push({ id: `eq:${label}`, number: eqNum, label, latex });
-        return match.replace(/\s*\{#eq:\w+\}\s*$/, '');
-      }
-      equationInfos.push({ id: `eq-${eqNum}`, number: eqNum, latex });
-      return match;
-    });
-
-    // Citation replacement
-    if (bibEntries && bibEntries.length > 0) {
-      const result = replaceCitations(processed, bibEntries);
-      processed = result.text;
-      lastUsedKeys = result.usedKeys;
-      lastMissingKeys = result.missingKeys;
-    }
-
-    // Interlinear gloss pre-processor (classical Arabic book layout)
-    processed = renderInterlinearGloss(processed);
-
-    resetBlockState();
-    
-    // Suppress KaTeX character metrics warnings in the console
-    const originalWarn = console.warn;
-    console.warn = (...args) => {
-      if (typeof args[0] === 'string' && args[0].includes('character metrics')) return;
-      originalWarn(...args);
-    };
-    const html = md.render(processed, {});
-    console.warn = originalWarn;
-
-    let htmlOut = html.replace(
-      /<(p|h[1-6]|blockquote|pre|th|td|li)\b/gi,
-      '<$1 dir="auto"',
-    );
-    htmlOut = htmlOut.replace(
-      /<(ul|ol)\b[^>]*>/gi,
-      (tag, _p1, offset: number) => {
-        const closeLi = htmlOut.indexOf('</li>', offset);
-        const content = htmlOut.slice(offset, closeLi);
-        const isRtl = /[\u0600-\u06FF]/.test(content);
-        return tag.replace(/(ul|ol)\b/, `$1 dir="${isRtl ? 'rtl' : 'ltr'}"`);
-      },
-    );
-    htmlOut = htmlOut.replace(/<table\b[^>]*>/gi, (match, offset: number) => {
-      const endIdx = htmlOut.indexOf('</table>', offset + match.length);
-      const content = endIdx > -1 ? htmlOut.slice(offset + match.length, endIdx) : '';
-      const isRtl = /[\u0600-\u06FF]/.test(content);
-      return `<table dir="${isRtl ? 'rtl' : 'ltr'}"`;
-    });
-
-    // Inject table captions — every table gets an auto-numbered caption
-    let tblIdx = 0;
-    htmlOut = htmlOut.replace(/<table\b[^>]*>[\s\S]*?<\/table>/g, (match) => {
-      const caption = captionMap.get(tblIdx) || '';
-      const num = tblIdx + 1;
-      tblIdx++;
-      const hasArabic = /[\u0600-\u06FF]/.test(match);
-      const label = hasArabic ? 'جدول' : 'Table';
-      const id = `tbl-${num}`;
-      const captionSuffix = caption ? `: ${md.utils.escapeHtml(caption)}` : '';
-      return `<figure class="table-figure" id="${id}">
-        <figcaption dir="auto">${label} ${num}${captionSuffix}</figcaption>
-        ${match}
-      </figure>`;
-    });
-
-    // Wrap displayed equations with auto-numbered figures
-    let eqIdx = 0;
-    htmlOut = htmlOut.replace(
-      /<p[^>]*class="katex-block[^"]*"[^>]*>[\s\S]*?<\/p>/g,
-      (match) => {
-        const eq = equationInfos[eqIdx++];
-        if (!eq) return match;
-        return `<figure class="equation-figure" id="${eq.id}">${match}<figcaption class="eq-number">(${eq.number})</figcaption></figure>`;
-      },
-    );
-
-    // Replace [ref:eq:label] / [ref:eq:N] with anchor links
-    if (equationInfos.length > 0) {
-      const refMap = new Map<string, EquationInfo>();
-      for (const eq of equationInfos) {
-        if (eq.label) refMap.set(eq.label, eq);
-        refMap.set(String(eq.number), eq);
-      }
-      htmlOut = htmlOut.replace(/\[ref:eq:([^\]]+)\]/g, (_match, ref) => {
-        const eq = refMap.get(ref);
-        if (eq) {
-          return `<a href="#${eq.id}" class="eq-ref">(${eq.number})</a>`;
-        }
-        return `<span class="eq-ref-unresolved">[ref:eq:${ref}]</span>`;
-      });
-    }
-
-    htmlOut = resolveBlockRefs(htmlOut);
-
-    // Append bibliography
-    if (bibEntries && bibEntries.length > 0 && (lastUsedKeys.length > 0 || lastMissingKeys.length > 0)) {
-      htmlOut += generateBibliographyHtml(lastUsedKeys, bibEntries, lastMissingKeys);
-    }
-
-    return htmlOut;
-  } catch {
-    return '<p style="color:#ff6b6b">خطأ في تحليل المعادلات الرياضية</p>';
-  }
 }

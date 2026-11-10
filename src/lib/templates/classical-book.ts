@@ -62,7 +62,7 @@ export const classicalBookTemplate: Template = {
 > هذا النموذج معد للتطوير ويمكن إضافة المزيد من النصوص التراثية من كتب الفقه والحديث والتفسير والنحو.
 `;
 
-    samples[matn1.id] = `:::page
+    samples[matn1.id] = `::::page
 
 :::matn .chapter
 # كتاب الطهارة
@@ -101,10 +101,10 @@ export const classicalBookTemplate: Template = {
 (4) الغسل: إفاضة الماء على جميع البدن بنية.
 :::
 
-:::
+::::
 `;
 
-    samples[matn2.id] = `:::page
+    samples[matn2.id] = `::::page
 
 :::matn .chapter
 # كتاب الصلاة
@@ -143,10 +143,10 @@ export const classicalBookTemplate: Template = {
 (4) الطمأنينة: السكون في كل ركن من أركان الصلاة.
 :::
 
-:::
+::::
 `;
 
-    samples[sharh1.id] = `:::page
+    samples[sharh1.id] = `::::page
 
 :::matn .chapter
 # شرح كتاب الطهارة
@@ -180,14 +180,14 @@ export const classicalBookTemplate: Template = {
 (3) الماء الكثير إذا تغيرت أوصافه بنجاسة فإنه ينجس عند جمهور الفقهاء.
 :::
 
-:::
+::::
 
 ## خلاصة الشرح
 
 هذا شرح موجز، ومن أراد التوسع فعليه بالمبسوطات وشروح المختصرات. والحمد لله رب العالمين.
 `;
 
-    samples[sharh2.id] = `:::page
+    samples[sharh2.id] = `::::page
 
 :::matn .chapter
 # شرح كتاب الصلاة
@@ -237,7 +237,7 @@ export const classicalBookTemplate: Template = {
 (3) الطمأنينة: أن يستقر المصفي في كل ركن حتى تطمئن مفاصله.
 :::
 
-:::
+::::
 `;
 
     samples[hashiyahN.id] = `# الحواشي والتعليقات

@@ -304,30 +304,51 @@ function formatArabicBibliographyEntry(entry: BibEntry, index: number): string {
  * Replace all [@key] citations in text with formatted in-text citations.
  * Returns modified text plus lists of used and missing citation keys.
  */
-export function replaceCitations(text: string, entries: BibEntry[]): { text: string; usedKeys: string[]; missingKeys: string[] } {
-  const entryMap = new Map(entries.map(e => [e.key, e]));
-  const usedKeys: string[] = [];
-  const missingKeys: string[] = [];
-  const seenKeys = new Set<string>();
-  const result = text.replace(/\[@([^\]]+)\]/g, (_match, keyGroup: string) => {
-    const keys = keyGroup.split(';').map(k => k.trim().replace(/^@/, '')).filter(Boolean);
+/** Strip the `ms:` / `tab:` style prefix from a citation key. */
+export function citationRealKey(key: string): string {
+  return key.startsWith('ms:') ? key.slice(3) : key.startsWith('tab:') ? key.slice(4) : key;
+}
+
+/**
+ * Tracks which keys a document cites, in first-use order, and formats each
+ * in-text citation group `[@a; @ms:b]` → "(A, 2020; …)".
+ */
+export class CitationTracker {
+  readonly usedKeys: string[] = [];
+  readonly missingKeys: string[] = [];
+  private readonly seen = new Set<string>();
+  private readonly entryMap: Map<string, BibEntry>;
+
+  constructor(entries: BibEntry[]) {
+    this.entryMap = new Map(entries.map(e => [e.key, e]));
+  }
+
+  formatGroup(keys: string[]): string {
     const formatted = keys.map(key => {
       const isMs = key.startsWith('ms:');
       const isTab = key.startsWith('tab:');
-      const realKey = isMs ? key.slice(3) : isTab ? key.slice(4) : key;
-      const entry = entryMap.get(realKey);
+      const realKey = citationRealKey(key);
+      const entry = this.entryMap.get(realKey);
       if (entry) {
-        if (!seenKeys.has(realKey)) { seenKeys.add(realKey); usedKeys.push(realKey); }
+        if (!this.seen.has(realKey)) { this.seen.add(realKey); this.usedKeys.push(realKey); }
         if (isMs) return formatInTextArabic({ ...entry, type: 'manuscript' });
         if (isTab) return formatInTextArabic({ ...entry, type: 'tabaqat' });
         return formatInText(entry);
       }
-      if (!seenKeys.has(realKey)) { seenKeys.add(realKey); missingKeys.push(realKey); }
+      if (!this.seen.has(realKey)) { this.seen.add(realKey); this.missingKeys.push(realKey); }
       return `?${realKey}?`;
     });
     return `(${formatted.join('; ')})`;
+  }
+}
+
+export function replaceCitations(text: string, entries: BibEntry[]): { text: string; usedKeys: string[]; missingKeys: string[] } {
+  const tracker = new CitationTracker(entries);
+  const result = text.replace(/\[@([^\]]+)\]/g, (_match, keyGroup: string) => {
+    const keys = keyGroup.split(';').map(k => k.trim().replace(/^@/, '')).filter(Boolean);
+    return tracker.formatGroup(keys);
   });
-  return { text: result, usedKeys, missingKeys };
+  return { text: result, usedKeys: tracker.usedKeys, missingKeys: tracker.missingKeys };
 }
 
 /**

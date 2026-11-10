@@ -1,5 +1,7 @@
 import type MarkdownIt from 'markdown-it';
 import container from 'markdown-it-container';
+import type StateCore from 'markdown-it/lib/rules_core/state_core.mjs';
+import type { RenderEnv } from './md/env';
 
 export type Language = 'en' | 'ar';
 
@@ -14,22 +16,14 @@ export interface BlockTypeConfig {
   numbered: boolean;
 }
 
-export interface BlockInfo {
-  id: string;
-  type: string;
-  number: number;
-  label?: string;
-}
+export type { BlockInfo } from './md/env';
 
 const registry = new Map<string, BlockTypeConfig>();
-const counters = new Map<string, number>();
-const blockInfos: BlockInfo[] = [];
 let currentLang: Language = 'en';
 const arabicAliases = new Map<string, string>();
 
 export function defineBlock(config: BlockTypeConfig): void {
   registry.set(config.type, config);
-  counters.set(config.type, 0);
 }
 
 export function defineBlocks(configs: BlockTypeConfig[]): void {
@@ -58,17 +52,6 @@ export function getRegisteredTypes(): string[] {
   return Array.from(registry.keys());
 }
 
-export function resetBlockState(): void {
-  for (const key of counters.keys()) {
-    counters.set(key, 0);
-  }
-  blockInfos.length = 0;
-}
-
-export function getBlockInfos(): BlockInfo[] {
-  return blockInfos;
-}
-
 defineBlocks([
   { type: 'theorem', labels: { en: 'Theorem', ar: 'نظرية' }, numbered: true },
   { type: 'definition', labels: { en: 'Definition', ar: 'تعريف' }, numbered: true },
@@ -80,10 +63,65 @@ defineBlocks([
   { type: 'exercise', labels: { en: 'Exercise', ar: 'تمرين' }, numbered: true },
 ]);
 
-function buildAliasMap(): void {
-  arabicAliases.clear();
-  for (const [type, config] of registry) {
-    arabicAliases.set(config.labels.ar, type);
+/** Container names owned by the classical-book plugin (markdown-classical.ts). */
+const CLASSICAL_CONTAINERS = new Set(['matn', 'sharh', 'hashiyah', 'page']);
+
+function splitInfo(info: string): { rawType: string; rest: string } {
+  const s = info.trim();
+  const sp = s.indexOf(' ');
+  return sp >= 0 ? { rawType: s.slice(0, sp), rest: s.slice(sp + 1).trim() } : { rawType: s, rest: '' };
+}
+
+interface AcademicMeta {
+  id: string;
+  type: string;
+  number: number;
+  label?: string;
+  title: string;
+  labelText: string;
+  numbered: boolean;
+  dir: string;
+}
+
+/** "Theorem 2" / "ملاحظة" for a reference to a block, or null for unknown types. */
+export function blockRefText(type: string, num: number): string | null {
+  const config = registry.get(type);
+  if (!config) return null;
+  const labelText = config.labels[currentLang];
+  return config.numbered ? `${labelText} ${num}` : labelText;
+}
+
+/**
+ * Number academic blocks in document order and record them in `env.blocks`.
+ * Runs as a core rule so numbering is known before rendering (forward refs work).
+ */
+function numberBlocks(state: StateCore): void {
+  const env = state.env as RenderEnv;
+  const counters = new Map<string, number>();
+  for (const tok of state.tokens) {
+    if (tok.type !== 'container_academic_open') continue;
+    const { rawType, rest } = splitInfo(tok.info);
+    const canonicalType = arabicAliases.get(rawType) || rawType;
+    const isArabic = arabicAliases.has(rawType);
+    const config = registry.get(canonicalType);
+    const num = (counters.get(canonicalType) || 0) + 1;
+    counters.set(canonicalType, num);
+
+    const m = rest.match(/^\{#([a-zA-Z0-9_-]+)\}\s*(.*)$/);
+    const label = m ? m[1] : undefined;
+    const title = m ? m[2] : rest;
+    const id = label || `${canonicalType}-${num}`;
+
+    const meta: AcademicMeta = config
+      ? {
+          id, type: canonicalType, number: num, label, title,
+          labelText: config.labels[isArabic ? 'ar' : currentLang],
+          numbered: config.numbered,
+          dir: isArabic ? 'rtl' : 'auto',
+        }
+      : { id, type: canonicalType, number: num, label, title, labelText: rawType, numbered: true, dir: 'auto' };
+    tok.meta = { ...(tok.meta || {}), academic: meta };
+    env.blocks?.push({ id, type: canonicalType, number: num, label });
   }
 }
 
@@ -91,63 +129,30 @@ export function academicBlocksPlugin(md: MarkdownIt): void {
   buildAliasMap();
 
   md.use(container, 'academic', {
-    validate: () => true,
-    render(tokens: any, idx: number, _options: any, _env: any, _self: any): string {
+    validate: (params: string) => {
+      const { rawType } = splitInfo(params);
+      return rawType !== '' && !CLASSICAL_CONTAINERS.has(rawType);
+    },
+    render(tokens: any[], idx: number): string {
       const token = tokens[idx];
-      const info: string = token.info.trim();
-
-      // First word is the block type, rest is title/label content
-      const spaceIdx = info.indexOf(' ');
-      const rawType = spaceIdx >= 0 ? info.slice(0, spaceIdx) : info;
-      const rest = spaceIdx >= 0 ? info.slice(spaceIdx + 1).trim() : '';
-
-      // Map Arabic alias to canonical type
-      const canonicalType = arabicAliases.get(rawType) || rawType;
-      const isArabic = arabicAliases.has(rawType);
-      const config = registry.get(canonicalType);
-
-      if (token.nesting === 1) {
-        const num = (counters.get(canonicalType) || 0) + 1;
-        counters.set(canonicalType, num);
-
-        let label: string | undefined;
-        let title: string;
-        const labelMatch = rest.match(/^\{#([a-zA-Z0-9_-]+)\}\s*(.*)$/);
-        if (labelMatch) {
-          label = labelMatch[1];
-          title = labelMatch[2];
-        } else {
-          title = rest;
-        }
-
-        const id = label || `${canonicalType}-${num}`;
-        blockInfos.push({ id, type: canonicalType, number: num, label });
-
-        let labelText: string;
-        let numbered: boolean;
-        let dir: string;
-
-        if (config) {
-          const lang = isArabic ? 'ar' : currentLang;
-          labelText = config.labels[lang];
-          numbered = config.numbered;
-          dir = isArabic ? 'rtl' : 'auto';
-        } else {
-          labelText = rawType;
-          numbered = true;
-          dir = 'auto';
-        }
-
-        const labelHtml = numbered ? `${labelText} ${num}` : labelText;
-        const titleHtml = title ? md.utils.escapeHtml(title) : '';
-        const titleAttr = titleHtml ? ` <span class="block-title">${titleHtml}</span>` : '';
-
-        return `<figure class="academic-block ${canonicalType}" id="${id}" dir="${dir}">\n<details open>\n<summary><span class="block-label">${labelHtml}</span>${titleAttr}</summary>\n`;
-      }
-
-      return `</details>\n</figure>\n`;
+      if (token.nesting !== 1) return `</details>\n</figure>\n`;
+      const a: AcademicMeta | undefined = token.meta?.academic;
+      if (!a) return `<figure class="academic-block">\n<details open>\n<summary></summary>\n`;
+      const labelHtml = a.numbered ? `${md.utils.escapeHtml(a.labelText)} ${a.number}` : md.utils.escapeHtml(a.labelText);
+      const titleHtml = a.title ? ` <span class="block-title">${md.utils.escapeHtml(a.title)}</span>` : '';
+      return `<figure class="academic-block ${md.utils.escapeHtml(a.type)}" id="${md.utils.escapeHtml(a.id)}" dir="${a.dir}">\n<details open>\n<summary><span class="block-label">${labelHtml}</span>${titleHtml}</summary>\n`;
     },
   });
+
+  // Must run before cross-references are resolved (structure.ts: sw_resolve).
+  md.core.ruler.before('sw_resolve', 'sw_academic_blocks', numberBlocks);
+}
+
+function buildAliasMap(): void {
+  arabicAliases.clear();
+  for (const [type, config] of registry) {
+    arabicAliases.set(config.labels.ar, type);
+  }
 }
 
 export function registerCustomBlock(config: BlockTypeConfig): void {
@@ -168,29 +173,4 @@ export function injectBlockStyle(type: string, color: string): void {
     `.preview .academic-block.${type}{border-color:${color}!important}` +
     `.preview .academic-block.${type} .block-label{color:${color}!important}`;
   document.head.appendChild(style);
-}
-
-export function resolveBlockRefs(html: string): string {
-  if (blockInfos.length === 0) return html;
-
-  const refMap = new Map<string, BlockInfo>();
-  for (const info of blockInfos) {
-    if (info.label) refMap.set(info.label, info);
-    refMap.set(info.id, info);
-  }
-
-  const types = getRegisteredTypes().join('|');
-  if (!types) return html;
-
-  const refRe = new RegExp(`\\[ref:(${types}):([^\\]]+)\\]`, 'g');
-  return html.replace(refRe, (_match: string, type: string, ref: string) => {
-    const config = registry.get(type);
-    const info = refMap.get(ref);
-    if (config && info) {
-      const labelText = config.labels[currentLang];
-      const display = config.numbered ? `${labelText} ${info.number}` : labelText;
-      return `<a href="#${info.id}" class="block-ref">${display}</a>`;
-    }
-    return `<span class="block-ref-unresolved">[ref:${type}:${ref}]</span>`;
-  });
 }

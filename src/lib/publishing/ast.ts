@@ -77,11 +77,15 @@ export interface CitationNode {
 export interface EquationRefNode {
   type: 'equationRef';
   ref: string;
+  /** Resolved text, e.g. "(2)"; undefined if the label is unknown. */
+  display?: string;
 }
 
 export interface BlockRefNode {
   type: 'blockRef';
   ref: string;
+  /** Resolved text, e.g. "Theorem 2"; undefined if the label is unknown. */
+  display?: string;
 }
 
 export interface WikiLinkNode {

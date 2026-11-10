@@ -8,76 +8,40 @@ import container from 'markdown-it-container';
  *   :::hashiyah — marginal gloss (small, multi-column)
  *   :::page    — page-as-canvas wrapper (paged layout)
  *
- * Interlinear gloss is handled as a pre-processor step in markdown.ts
- * using the `{%gloss%}` inline syntax.
+ * Interlinear gloss (`word{%gloss%}`) is a core rule in md/structure.ts.
  */
 
-export function classicalBookPlugin(md: MarkdownIt): void {
-  // ── matn ──
-  md.use(container, 'matn', {
-    validate: () => true,
-    render(tokens: any, idx: number): string {
-      const token = tokens[idx];
-      const info = token.info.trim();
-      const extraClass = info.slice(4).trim(); // e.g. "matn .chapter" → ".chapter"
-      if (token.nesting === 1) {
-        return `<div class="matn${extraClass ? ' ' + extraClass : ''}">\n`;
-      }
-      return '</div>\n';
-    },
-  });
+const CLASSICAL: { name: string; cls: string }[] = [
+  { name: 'matn', cls: 'matn' },
+  { name: 'sharh', cls: 'sharh' },
+  { name: 'hashiyah', cls: 'hashiyah' },
+  { name: 'page', cls: 'classical-page' },
+];
 
-  // ── sharh ──
-  md.use(container, 'sharh', {
-    validate: () => true,
-    render(tokens: any, idx: number): string {
-      if (tokens[idx].nesting === 1) {
-        return '<div class="sharh">\n';
-      }
-      return '</div>\n';
-    },
-  });
-
-  // ── hashiyah ──
-  md.use(container, 'hashiyah', {
-    validate: () => true,
-    render(tokens: any, idx: number): string {
-      if (tokens[idx].nesting === 1) {
-        return '<div class="hashiyah">\n';
-      }
-      return '</div>\n';
-    },
-  });
-
-  // ── page ──
-  md.use(container, 'page', {
-    validate: () => true,
-    render(tokens: any, idx: number): string {
-      if (tokens[idx].nesting === 1) {
-        return '<div class="classical-page">\n';
-      }
-      return '</div>\n';
-    },
-  });
+/** Extra CSS classes after the name: `:::matn .chapter intro` → ["chapter", "intro"]. */
+function extraClasses(info: string): string[] {
+  return info
+    .trim()
+    .split(/\s+/)
+    .slice(1)
+    .map((c) => c.replace(/^\./, ''))
+    .filter((c) => /^[A-Za-z][\w-]*$/.test(c));
 }
 
-/**
- * Pre-processor: convert `{%gloss%}` into interlinear HTML spans.
- * Called BEFORE md.render() so the HTML is treated as passthrough.
- *
- * Syntax:  BASE{%GLOSS%}  →  <span class="interlinear-unit">
- *                               <span class="interlinear-base">BASE</span>
- *                               <span class="interlinear-gloss">GLOSS</span>
- *                             </span>
- *
- * The regex matches a non-space word immediately followed by {%...%}.
- */
-export function renderInterlinearGloss(text: string): string {
-  return text.replace(
-    /(\S+)\{%([^%]+)%\}/g,
-    (_, base: string, gloss: string) =>
-      `<span class="interlinear-unit"><span class="interlinear-base">${escapeHtml(base)}</span><span class="interlinear-gloss">${escapeHtml(gloss)}</span></span>`,
-  );
+export function classicalBookPlugin(md: MarkdownIt): void {
+  for (const { name, cls } of CLASSICAL) {
+    md.use(container, name, {
+      // Each container claims only its own name (they used to accept anything,
+      // so `:::matn` swallowed `:::sharh`/`:::hashiyah`).
+      validate: (params: string) => params.trim().split(/\s+/)[0] === name,
+      render(tokens: any, idx: number): string {
+        const token = tokens[idx];
+        if (token.nesting !== 1) return '</div>\n';
+        const classes = [cls, ...extraClasses(token.info)].join(' ');
+        return `<div class="${classes}">\n`;
+      },
+    });
+  }
 }
 
 /**

@@ -29,6 +29,12 @@ export function buildNameToIdMap(hierarchy: TreeNode[]): Map<string, string> {
   return map;
 }
 
+/** Name → note id lookup for the markdown pipeline (`RenderOptions.resolveWikiLink`). */
+export function wikiLinkResolver(hierarchy: TreeNode[]): (name: string) => string | null {
+  const map = buildNameToIdMap(hierarchy);
+  return (name) => map.get(name.trim()) ?? null;
+}
+
 export function resolveWikiLink(
   targetName: string,
   hierarchy: TreeNode[],
@@ -124,23 +130,3 @@ export function updateBacklinksForNote(
   }
 }
 
-/**
- * Convert [[wiki links]] in markdown content to HTML anchor tags.
- * Resolves names via the hierarchy name→id map.
- */
-export function renderWikiLinks(
-  html: string,
-  hierarchy: TreeNode[],
-): string {
-  const nameToId = buildNameToIdMap(hierarchy);
-  const linkRe = /\[\[([^\]|]+)(?:\|([^\]]*))?\]\]/g;
-  return html.replace(linkRe, (_match, target: string, display?: string) => {
-    const targetName = target.trim();
-    const id = nameToId.get(targetName);
-    const label = display?.trim() || targetName;
-    if (id) {
-      return `<a href="#" class="wiki-link wiki-link-resolved" data-note-id="${id}">${label}</a>`;
-    }
-    return `<span class="wiki-link wiki-link-missing">${label}</span>`;
-  });
-}

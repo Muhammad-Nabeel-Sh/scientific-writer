@@ -17,7 +17,6 @@
   "dependencies": {
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "@tauri-apps/plugin-opener": "^2",
-    "@traptitech/markdown-it-katex": "^3.6.0",
     "@umalqura/core": "^0.0.7",
     "docx": "^9.7.1",
     "dompurify": "^3.4.17",

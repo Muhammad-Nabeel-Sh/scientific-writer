@@ -50,7 +50,7 @@ export function footnotePlugin(md: MarkdownIt): void {
 
   md.renderer.rules.footnote_open = (tokens, idx, options, env, slf) => {
     const num = Number(tokens[idx].meta.id + 1);
-    return `<li id="fn${num}" class="footnote-item">`;
+    return `<li id="fn${num}" class="footnote-item" dir="auto">`;
   };
 
   md.renderer.rules.footnote_anchor = (tokens, idx, options, env, slf) => {

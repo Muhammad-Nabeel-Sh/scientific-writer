@@ -11,8 +11,8 @@
   import NewProjectDialog from './NewProjectDialog.svelte';
   import SearchDialog from './SearchDialog.svelte';
   import { noteContent, bibEntries, digitStyle, fontSettings, ligatureSettings } from '$lib/stores';
-  import { renderMarkdown } from '$lib/markdown';
-  import { renderWikiLinks } from '$lib/backlinks';
+  import { renderDocument } from '$lib/markdown';
+  import { wikiLinkResolver } from '$lib/backlinks';
   import { sanitizeHtml } from '$lib/sanitize';
 
   const dispatch = createEventDispatcher<{ about: void; undo: void }>();
@@ -218,8 +218,13 @@
   async function exportPdf() {
     $exportStatus = { exporting: true, label: 'جارٍ تحضير PDF…' };
     try {
-      let rendered = renderMarkdown($noteContent || '', $bibEntries, $digitStyle);
-      rendered = sanitizeHtml(renderWikiLinks(rendered, $hierarchy));
+      let rendered = sanitizeHtml(
+        renderDocument($noteContent || '', {
+          bibEntries: $bibEntries,
+          digitStyle: $digitStyle,
+          resolveWikiLink: wikiLinkResolver($hierarchy),
+        }).html,
+      );
 
       const f = $fontSettings, ly = $ligatureSettings;
       const fv = `"wght" ${f.weight}, "opsz" ${f.opticalSize}, "${f.family === 'Readex Pro' ? 'HEXP' : 'wdth'}" ${f.width}`;

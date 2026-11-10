@@ -4,11 +4,11 @@
     digitStyle, ligatureSettings,
     fontSettings, kashidaConfig, hierarchy, activeNoteId,
   } from "$lib/stores";
-  import { renderMarkdown, getLastCitationResult } from "$lib/markdown";
+  import { renderDocument } from "$lib/markdown";
   import { getWorkspaceDir } from "$lib/fs";
   import { convertFileSrc, isTauri } from "@tauri-apps/api/core";
   import { applyKashida, clearKashida } from "$lib/kashida";
-  import { renderWikiLinks } from "$lib/backlinks";
+  import { wikiLinkResolver } from "$lib/backlinks";
   import { sanitizeHtml } from "$lib/sanitize";
 
   $: content = $noteContent;
@@ -54,12 +54,14 @@
   $: previewStyle = `font-family: ${$fontSettings.family}, 'Amiri', 'Noto Sans Arabic', 'Readex Pro', serif; font-weight: ${$fontSettings.weight}; font-size: ${$fontSettings.fontSize}px; font-variation-settings: ${fontSettingsCSS()}; font-feature-settings: ${ligatureSettingsCSS() || 'normal'};`;
 
   $: {
-    let rendered = renderMarkdown(content, entries, $digitStyle);
-    rendered = renderWikiLinks(rendered, $hierarchy);
-    html = sanitizeHtml(resolveAssets(rendered));
-    const result = getLastCitationResult();
-    $citedKeys = result.usedKeys;
-    $missingCitationKeys = result.missingKeys;
+    const result = renderDocument(content, {
+      bibEntries: entries,
+      digitStyle: $digitStyle,
+      resolveWikiLink: wikiLinkResolver($hierarchy),
+    });
+    html = sanitizeHtml(resolveAssets(result.html));
+    $citedKeys = result.citations.used;
+    $missingCitationKeys = result.citations.missing;
 
     // Read at top level to ensure Svelte tracks them as dependencies
     const kashEnabled = $kashidaConfig.enabled;
