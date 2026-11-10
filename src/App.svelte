@@ -5,8 +5,11 @@
     openTabList, pushHierarchySnapshot, undoHierarchy, redoHierarchy,
     recentWorkspaces, loadRecentWorkspaces, addRecentWorkspace,
     lastBackupTime, BACKUP_INTERVAL, exportStatus,
-    loadKeybindings, keybindings, highlightTheme,
+    loadKeybindings, keybindings, highlightTheme, noteLoading,
   } from "$lib/stores";
+  import { noteSaver, REFERENCES_ID } from "$lib/note-saver";
+  import { installExternalLinkHandler } from "$lib/external-links";
+  import { onMount } from "svelte";
   import { initWorkspace, readNote, ensureBibliography, backupNote, clearWorkspaceCache } from "$lib/fs";
   import { parseBibTeX } from "$lib/bibliography";
   import { buildBacklinksIndex, updateBacklinksForNote } from "$lib/backlinks";
@@ -78,14 +81,37 @@
     });
   }
 
-  /* ── Tab integration: open note in tab on selection ── */
-  $: if ($activeNoteId && $activeNoteId !== '__references__') {
-    readNote($activeNoteId).then((c) => {
-      const node = findNode($hierarchy, $activeNoteId!);
-      const name = node ? node.name.replace(/\.md$/i, '') : $activeNoteId!;
-      openNoteTab($activeNoteId!, name, c);
+  /* ── Tab integration: open note in tab on selection ──
+     Runs only when the active note id changes (not on hierarchy edits),
+     prefers the open tab's in-memory text over disk, and writes pending
+     saves first so the disk copy is current. The editor is read-only while
+     loading so keystrokes cannot land in the wrong note. */
+  $: loadActiveNote($activeNoteId);
+
+  let loadSeq = 0;
+  async function loadActiveNote(id: string | null) {
+    const seq = ++loadSeq;
+    if (!id || id === REFERENCES_ID) return;
+    const tab = $openTabs.get(id);
+    if (tab) {
+      prevContent = tab.content;
+      $noteContent = tab.content;
+      $activeTabId = id;
+      return;
+    }
+    $noteLoading = true;
+    try {
+      await noteSaver.flush();
+      const c = await readNote(id);
+      if (seq !== loadSeq) return; // user already moved on
+      const node = findNode($hierarchy, id);
+      const name = node ? node.name.replace(/\.md$/i, '') : id;
+      openNoteTab(id, name, c);
+      prevContent = c;
       $noteContent = c;
-    });
+    } finally {
+      if (seq === loadSeq) $noteLoading = false;
+    }
   }
 
   function findNode(nodes: any[], id: string): any {
@@ -164,10 +190,18 @@
   }
 
   /* ── References editor ── */
-  function openReferences() {
-    $activeNoteId = '__references__';
-    ensureBibliography().then((c) => { $noteContent = c; });
+  async function openReferences() {
+    $noteLoading = true;
+    try {
+      await noteSaver.flush();
+      $activeNoteId = REFERENCES_ID;
+      $noteContent = await ensureBibliography();
+    } finally {
+      $noteLoading = false;
+    }
   }
+
+  onMount(() => installExternalLinkHandler());
 
   function startDrag(e: MouseEvent, target: string) {
     isDragging = true;

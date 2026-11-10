@@ -3,6 +3,7 @@
   import { buildIndex, searchIndex, normalizeArabic } from '$lib/search';
   import type { SearchIndex, SearchResult, SearchMatch, MatchType } from '$lib/search';
   import { onMount, tick } from 'svelte';
+  import { sanitizeHtml } from '$lib/sanitize';
 
   export let show = false;
 
@@ -184,7 +185,7 @@
                         {matchLabels[match.type]}
                       </span>
                       <span class="match-snippet">
-                        {@html highlightSnippet(match.snippet, match.ranges)}
+                        {@html sanitizeHtml(highlightSnippet(match.snippet, match.ranges))}
                       </span>
                     </button>
                   {/each}

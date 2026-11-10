@@ -2,6 +2,7 @@
   import { createEventDispatcher, onMount } from 'svelte';
   import { noteContent } from '$lib/stores';
   import katex from 'katex';
+  import { sanitizeHtml } from '$lib/sanitize';
   import { parseEquationsFromText } from '$lib/markdown';
   import type { EquationInfo } from '$lib/markdown';
   import KatexGallery from './KatexGallery.svelte';
@@ -94,7 +95,7 @@
             rows="3"
           ></textarea>
           <div class="eq-preview" dir="ltr">
-            {@html previewHtml}
+            {@html sanitizeHtml(previewHtml)}
           </div>
           <div class="eq-actions">
             <button
@@ -123,7 +124,7 @@
             {#each documentEquations as eq}
               <div class="eq-list-item">
                 <div class="eq-item-number">({eq.number})</div>
-                <div class="eq-item-preview" dir="ltr">{@html eq.preview}</div>
+                <div class="eq-item-preview" dir="ltr">{@html sanitizeHtml(eq.preview)}</div>
                 <button class="btn-cite" on:click={() => citeEquation(eq.number)}>
                   استشهاد
                 </button>

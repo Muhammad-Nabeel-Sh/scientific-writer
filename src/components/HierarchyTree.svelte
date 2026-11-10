@@ -3,9 +3,9 @@
   import { hierarchy, activeNoteId } from '$lib/stores';
   import type { TreeNode } from '$lib/stores';
   import { invoke } from '@tauri-apps/api/core';
-  import { open } from '@tauri-apps/plugin-dialog';
   import { createId } from '$lib/utils';
-  import { saveHierarchy, getWorkspaceDir, setWorkspaceDir, clearWorkspaceCache } from '$lib/fs';
+  import { saveHierarchy, getWorkspaceDir, setWorkspaceDir, pickWorkspaceDir, clearWorkspaceCache } from '$lib/fs';
+  import { noteSaver } from '$lib/note-saver';
   import { pushHierarchySnapshot, recentWorkspaces, addRecentWorkspace, undoHierarchy, loadRecentWorkspaces, exportStatus } from '$lib/stores';
   import TreeItem from './TreeItem.svelte';
   import NewProjectDialog from './NewProjectDialog.svelte';
@@ -13,6 +13,7 @@
   import { noteContent, bibEntries, digitStyle, fontSettings, ligatureSettings } from '$lib/stores';
   import { renderMarkdown } from '$lib/markdown';
   import { renderWikiLinks } from '$lib/backlinks';
+  import { sanitizeHtml } from '$lib/sanitize';
 
   const dispatch = createEventDispatcher<{ about: void; undo: void }>();
 
@@ -54,6 +55,12 @@
         return true;
       });
     $hierarchy = remove([...$hierarchy]);
+    // Don't let a pending autosave recreate a deleted note.
+    const dropSaves = (n: TreeNode) => {
+      noteSaver.discard(n.id);
+      n.children?.forEach(dropSaves);
+    };
+    dropSaves(node);
     if ($activeNoteId === node.id) $activeNoteId = null;
     save();
   }
@@ -98,26 +105,26 @@
 
   async function openWorkspace() {
     try {
-      const selected = await open({
-        directory: true,
-        multiple: false,
-        title: 'اختر مجلد مساحة العمل (المشروع)',
-      });
-      if (selected === null) return;
-      const path = Array.isArray(selected) ? selected[0] : selected;
-      if (path) {
-        addRecentWorkspace(path);
-        await setWorkspaceDir(path);
-        window.dispatchEvent(new CustomEvent('reinit-workspace', { detail: { path } }));
-      }
+      const path = await pickWorkspaceDir();
+      if (path) await activateWorkspace(path);
     } catch (e) {
       console.error('[openWorkspace]', e);
     }
   }
 
   async function switchWorkspace(path: string) {
+    try {
+      await activateWorkspace(path);
+    } catch (e) {
+      console.error('[switchWorkspace]', e);
+    }
+  }
+
+  async function activateWorkspace(path: string) {
+    // Pending saves belong to the current workspace: write them before switching.
+    await noteSaver.flush();
+    await setWorkspaceDir(path); // throws if the user declines the native prompt
     addRecentWorkspace(path);
-    await setWorkspaceDir(path);
     window.dispatchEvent(new CustomEvent('reinit-workspace', { detail: { path } }));
   }
 
@@ -212,7 +219,7 @@
     $exportStatus = { exporting: true, label: 'جارٍ تحضير PDF…' };
     try {
       let rendered = renderMarkdown($noteContent || '', $bibEntries, $digitStyle);
-      rendered = renderWikiLinks(rendered, $hierarchy);
+      rendered = sanitizeHtml(renderWikiLinks(rendered, $hierarchy));
 
       const f = $fontSettings, ly = $ligatureSettings;
       const fv = `"wght" ${f.weight}, "opsz" ${f.opticalSize}, "${f.family === 'Readex Pro' ? 'HEXP' : 'wdth'}" ${f.width}`;

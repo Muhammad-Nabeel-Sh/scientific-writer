@@ -5,18 +5,17 @@
     editorRef,
     activeHeadingId,
     outlineItems,
-    bibEntries,
     hierarchy,
-    markTabClean,
     keybindings,
     exportStatus,
+    noteLoading,
   } from "$lib/stores";
   import { get } from "svelte/store";
-  import { tick } from "svelte";
-  import { writeNote, writeBibliography, getWorkspaceDir } from "$lib/fs";
-  import { parseBibTeX } from "$lib/bibliography";
+  import { tick, onMount } from "svelte";
+  import { getWorkspaceDir } from "$lib/fs";
   import { invoke } from "@tauri-apps/api/core";
-  import { debounce } from "$lib/utils";
+  import { createHistoryRegistry } from "$lib/note-history";
+  import { noteSaver } from "$lib/note-saver";
   import QuranDialog from "./QuranDialog.svelte";
   import HadithDialog from "./HadithDialog.svelte";
   import CitationDialog from "./CitationDialog.svelte";
@@ -34,7 +33,6 @@
   import TypographySettings from "./TypographySettings.svelte";
 
   let textareaRef: HTMLTextAreaElement;
-  let saveTimeout: ReturnType<typeof setTimeout>;
   let fileInput: HTMLInputElement;
 
   let showHeadingMenu = false;
@@ -84,65 +82,65 @@
       )
     : flatNotes;
 
-  let history: string[] = [""];
-  let historyIndex = 0;
-  let ignoreNextInput = false;
+  // Undo history is kept per note (see $lib/note-history): undo in one note
+  // can never bring back another note's text.
+  const histories = createHistoryRegistry(200);
+  // Text as it was before the edit currently being processed. Seeds a note's
+  // history the first time it is edited.
+  let lastValue = "";
 
   $: content = $noteContent;
+  $: lastValue = content;
 
-  const debouncedSave = debounce(async () => {
-    if (!$activeNoteId || !content.trim()) return;
-    try {
-      if ($activeNoteId === "__references__") {
-        await writeBibliography(content);
-        $bibEntries = parseBibTeX(content);
-      } else {
-        await writeNote($activeNoteId, content);
-      }
-      markTabClean($activeNoteId);
-    } catch {
-      /* ignore */
-    }
-  }, 500);
+  function onWorkspaceReinit() {
+    // Note ids (e.g. "note-1") repeat across workspaces.
+    histories.clear();
+  }
+  onMount(() => {
+    window.addEventListener("reinit-workspace", onWorkspaceReinit);
+    return () => window.removeEventListener("reinit-workspace", onWorkspaceReinit);
+  });
+
+  function scheduleSave(val: string) {
+    if ($activeNoteId) noteSaver.schedule($activeNoteId, val);
+  }
+
+  function saveNow() {
+    if ($activeNoteId && textareaRef) noteSaver.schedule($activeNoteId, textareaRef.value);
+    void noteSaver.flush();
+  }
 
   function pushHistory() {
     const val = textareaRef?.value;
-    if (val == null) return;
-    if (history[historyIndex] === val) return;
-    history = history.slice(0, historyIndex + 1);
-    history.push(val);
-    if (history.length > 200) history.shift();
-    historyIndex = history.length - 1;
+    if (val == null || !$activeNoteId) return;
+    histories.get($activeNoteId, lastValue).push(val);
   }
 
-  function setValue(val: string) {
-    ignoreNextInput = true;
+  /** Replace the whole text without recording history (undo/redo). */
+  function applyValue(val: string) {
     textareaRef.value = val;
-    textareaRef.dispatchEvent(new Event("input", { bubbles: true }));
+    $noteContent = val;
+    scheduleSave(val);
   }
 
   function undo() {
-    if (historyIndex <= 0) return;
-    historyIndex--;
-    setValue(history[historyIndex]);
+    if (!$activeNoteId || !histories.has($activeNoteId)) return;
+    const v = histories.get($activeNoteId, "").undo();
+    if (v !== null) applyValue(v);
   }
 
   function redo() {
-    if (historyIndex >= history.length - 1) return;
-    historyIndex++;
-    setValue(history[historyIndex]);
+    if (!$activeNoteId || !histories.has($activeNoteId)) return;
+    const v = histories.get($activeNoteId, "").redo();
+    if (v !== null) applyValue(v);
   }
 
   function handleInput(e: Event) {
-    if (ignoreNextInput) {
-      ignoreNextInput = false;
-      return;
-    }
+    if ($noteLoading) return;
     pushHistory();
     const val = (e.target as HTMLTextAreaElement).value;
     $noteContent = val;
-    clearTimeout(saveTimeout);
-    saveTimeout = setTimeout(debouncedSave, 300);
+    scheduleSave(val);
   }
 
   // Override handleKeydown to use keybindings store
@@ -371,7 +369,7 @@
             return;
           case "save":
             e.preventDefault();
-            debouncedSave();
+            saveNow();
             return;
           case "bold":
             e.preventDefault();
@@ -1006,6 +1004,7 @@
     dir="auto"
     class="editor"
     value={content}
+    readonly={$noteLoading}
     on:input={handleInput}
     on:keydown={handleKeydown}
     on:scroll={onEditorScroll}

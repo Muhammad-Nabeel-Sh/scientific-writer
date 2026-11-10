@@ -9,6 +9,7 @@
   import { convertFileSrc } from "@tauri-apps/api/core";
   import { applyKashida, clearKashida } from "$lib/kashida";
   import { renderWikiLinks } from "$lib/backlinks";
+  import { sanitizeHtml } from "$lib/sanitize";
 
   $: content = $noteContent;
   $: entries = $bibEntries;
@@ -54,7 +55,7 @@
   $: {
     let rendered = renderMarkdown(content, entries, $digitStyle);
     rendered = renderWikiLinks(rendered, $hierarchy);
-    html = resolveAssets(rendered);
+    html = sanitizeHtml(resolveAssets(rendered));
     const result = getLastCitationResult();
     $citedKeys = result.usedKeys;
     $missingCitationKeys = result.missingKeys;

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher, onMount } from 'svelte';
   import hljs from 'highlight.js';
+  import { sanitizeHtml } from '$lib/sanitize';
   import { highlightTheme } from "$lib/stores";
 
   export let insertAtCursor: (text: string) => void;
@@ -188,7 +189,7 @@
           rows="8"
         ></textarea>
         <div class="code-preview" dir="auto">
-          {@html previewHtml}
+          {@html sanitizeHtml(previewHtml)}
         </div>
       </div>
 

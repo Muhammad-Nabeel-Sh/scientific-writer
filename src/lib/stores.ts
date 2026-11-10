@@ -217,6 +217,9 @@ export const BACKUP_INTERVAL = 120000; // 2 minutes
 
 /* ── Export status ── */
 
+/** True while the active note's content is being read from disk; the editor is read-only meanwhile. */
+export const noteLoading = writable(false);
+
 export const exportStatus = writable<{ exporting: boolean; label: string; error?: string }>({
   exporting: false,
   label: '',

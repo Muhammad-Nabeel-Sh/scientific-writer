@@ -4,31 +4,63 @@ import type { TreeNode } from './stores';
 let WORKSPACE_DIR: string;
 let HIERARCHY_FILE: string;
 
+const WORKSPACE_KEY = 'scientific_writer_workspace';
+
+/**
+ * The backend only lets the app touch folders the user has trusted (picked in
+ * the native dialog or confirmed natively). A saved path that is no longer
+ * trusted triggers that confirmation; if declined we fall back to the default.
+ */
+let resolving: Promise<string> | null = null;
+
 export async function getWorkspaceDir(): Promise<string> {
-  if (!WORKSPACE_DIR) {
-    const saved = localStorage.getItem('scientific_writer_workspace');
+  if (WORKSPACE_DIR) return WORKSPACE_DIR;
+  // Concurrent callers at startup share one resolution (one native prompt at most).
+  if (!resolving) resolving = resolveWorkspaceDir().finally(() => { resolving = null; });
+  return resolving;
+}
+
+async function resolveWorkspaceDir(): Promise<string> {
+  {
+    const saved = localStorage.getItem(WORKSPACE_KEY);
+    let dir = '';
     if (saved) {
-      WORKSPACE_DIR = saved;
-    } else {
-      WORKSPACE_DIR = await invoke<string>('get_workspace_dir');
-      localStorage.setItem('scientific_writer_workspace', WORKSPACE_DIR);
+      try {
+        dir = await invoke<string>('open_workspace', { path: saved });
+      } catch (e) {
+        console.warn('[workspace] saved workspace not opened:', e);
+      }
     }
-    await invoke('create_dir', { path: WORKSPACE_DIR, recursive: true });
-    await invoke('create_dir', { path: `${WORKSPACE_DIR}/assets`, recursive: true });
-    HIERARCHY_FILE = `${WORKSPACE_DIR}/hierarchy.json`;
+    if (!dir) {
+      dir = await invoke<string>('get_workspace_dir');
+      localStorage.setItem(WORKSPACE_KEY, dir);
+    }
+    await invoke('create_dir', { path: dir, recursive: true });
+    await invoke('create_dir', { path: `${dir}/assets`, recursive: true });
+    HIERARCHY_FILE = `${dir}/hierarchy.json`;
+    WORKSPACE_DIR = dir;
   }
   return WORKSPACE_DIR;
 }
 
 export function clearWorkspaceCache() {
   WORKSPACE_DIR = '';
+  resolving = null;
   HIERARCHY_FILE = '';
 }
 
+/** Native folder picker; the picked folder is trusted by the backend. */
+export async function pickWorkspaceDir(): Promise<string | null> {
+  return invoke<string | null>('pick_workspace');
+}
+
+/** Switch to `path`. Rejects if the user declines the native confirmation. */
 export async function setWorkspaceDir(path: string): Promise<void> {
-  WORKSPACE_DIR = path;
+  const dir = await invoke<string>('open_workspace', { path });
+  WORKSPACE_DIR = dir;
   HIERARCHY_FILE = `${WORKSPACE_DIR}/hierarchy.json`;
-  localStorage.setItem('scientific_writer_workspace', path);
+  localStorage.setItem(WORKSPACE_KEY, dir);
+  path = dir;
   await invoke('create_dir', { path, recursive: true });
   await invoke('create_dir', { path: `${path}/assets`, recursive: true });
 }
@@ -57,7 +89,7 @@ export async function backupNote(id: string, content: string): Promise<void> {
   // Keep only last 20 backups per note
   try {
     const backupDirPath = await getBackupDir();
-    const list = await invoke<string[]>('list_assets', { workspace: backupDirPath });
+    const list = await invoke<string[]>('list_files', { dir: backupDirPath });
     const noteBackups = list.filter(f => f.startsWith(id + '_')).sort();
     while (noteBackups.length > 20) {
       const old = noteBackups.shift()!;
@@ -68,24 +100,13 @@ export async function backupNote(id: string, content: string): Promise<void> {
 
 export async function listBackups(noteId: string): Promise<string[]> {
   const backupDir = await getBackupDir();
-  const list = await invoke<string[]>('list_assets', { workspace: backupDir });
+  const list = await invoke<string[]>('list_files', { dir: backupDir });
   return list.filter(f => f.startsWith(noteId + '_')).sort().reverse();
 }
 
 export async function restoreBackup(noteId: string, backupFile: string): Promise<string> {
   const backupDir = await getBackupDir();
   return invoke<string>('read_text_file', { path: `${backupDir}/${backupFile}` });
-}
-
-/* ── Import external files ── */
-
-export async function importExternalFile(filePath: string): Promise<string | null> {
-  try {
-    const content = await invoke<string>('read_text_file', { path: filePath });
-    return content;
-  } catch {
-    return null;
-  }
 }
 
 export async function deleteAssetFile(filename: string): Promise<void> {

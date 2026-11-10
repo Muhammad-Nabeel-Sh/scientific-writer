@@ -1,10 +1,16 @@
+mod workspace;
+
 use rusqlite::Connection;
 use serde::Serialize;
 use spellbook::Dictionary;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use tauri::Manager;
+use tauri::{Manager, State};
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+use workspace::{write_atomic, WorkspaceRegistry};
+
+type Ws<'a> = State<'a, WorkspaceRegistry>;
 
 fn workspace_dir(app: &tauri::AppHandle) -> PathBuf {
     let data_dir = app
@@ -14,24 +20,118 @@ fn workspace_dir(app: &tauri::AppHandle) -> PathBuf {
     data_dir.join("scientific-writer").join("workspace")
 }
 
+/// Source checkout root. Only meaningful in debug builds, where data files are
+/// read straight from the repository instead of the bundle's resource dir.
+#[cfg(debug_assertions)]
+fn project_root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("failed to resolve project root")
+        .to_path_buf()
+}
+
+/// Resolve a bundled resource: `<resource_dir>/<bundled>` in production,
+/// `<repo>/<dev_rel>` as a fallback in debug builds only.
+fn resource_path(app: &tauri::AppHandle, bundled: &str, dev_rel: &str) -> PathBuf {
+    let bundled_path = app.path().resource_dir().map(|d| d.join(bundled));
+    if let Ok(p) = &bundled_path {
+        if p.exists() {
+            return p.clone();
+        }
+    }
+    #[cfg(debug_assertions)]
+    {
+        let _ = bundled_path;
+        project_root().join(dev_rel)
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        let _ = dev_rel;
+        bundled_path.unwrap_or_else(|_| PathBuf::from(bundled))
+    }
+}
+
+/// Let the asset protocol (convertFileSrc) serve files from a trusted root.
+fn allow_asset_dir(app: &tauri::AppHandle, dir: &Path) {
+    let _ = app.asset_protocol_scope().allow_directory(dir, true);
+}
+
+// ── Workspace selection ───────────────────────────────────────────────
+
 #[tauri::command]
-fn copy_file_to_assets(workspace: String, file_name: String, data: Vec<u8>) -> Result<String, String> {
-    let assets_dir = Path::new(&workspace).join("assets");
+fn get_workspace_dir(app: tauri::AppHandle, ws: Ws) -> Result<String, String> {
+    let dir = workspace_dir(&app);
+    fs::create_dir_all(&dir).map_err(|e| format!("mkdir: {}", e))?;
+    if !ws.is_trusted(&dir) {
+        ws.trust(&dir)?;
+    }
+    allow_asset_dir(&app, &dir);
+    Ok(dir.to_string_lossy().to_string())
+}
+
+/// Native folder picker. The picked folder becomes a trusted workspace.
+/// Returns `None` when the user cancels.
+#[tauri::command]
+async fn pick_workspace(app: tauri::AppHandle, ws: Ws<'_>) -> Result<Option<String>, String> {
+    let picked = app
+        .dialog()
+        .file()
+        .set_title("اختر مجلد مساحة العمل (المشروع)")
+        .blocking_pick_folder();
+    let Some(fp) = picked else { return Ok(None) };
+    let path = fp.into_path().map_err(|e| e.to_string())?;
+    let canon = ws.trust(&path)?;
+    allow_asset_dir(&app, &canon);
+    Ok(Some(path.to_string_lossy().to_string()))
+}
+
+/// Open a workspace by path (recent list, saved setting). Already-trusted
+/// folders open directly; anything else needs the user to confirm in a
+/// native dialog, which page content cannot answer on the user's behalf.
+#[tauri::command]
+async fn open_workspace(app: tauri::AppHandle, ws: Ws<'_>, path: String) -> Result<String, String> {
+    let p = PathBuf::from(&path);
+    if !p.is_absolute() || !p.is_dir() {
+        return Err(format!("المجلد غير موجود: {}", path));
+    }
+    if !ws.is_trusted(&p) {
+        let ok = app
+            .dialog()
+            .message(format!(
+                "هل تريد منح التطبيق صلاحية القراءة والكتابة في هذا المجلد؟\n\n{}",
+                path
+            ))
+            .title("فتح مساحة عمل")
+            .kind(MessageDialogKind::Warning)
+            .buttons(MessageDialogButtons::OkCancelCustom("فتح".into(), "إلغاء".into()))
+            .blocking_show();
+        if !ok {
+            return Err("ألغى المستخدم فتح مساحة العمل".into());
+        }
+        ws.trust(&p)?;
+    }
+    allow_asset_dir(&app, &p);
+    Ok(path)
+}
+
+// ── File commands (all confined to trusted workspaces) ────────────────
+
+#[tauri::command]
+fn copy_file_to_assets(ws: Ws, workspace: String, file_name: String, data: Vec<u8>) -> Result<String, String> {
+    let assets_dir = ws.resolve(&workspace)?.join("assets");
     fs::create_dir_all(&assets_dir).map_err(|e| format!("mkdir assets: {}", e))?;
-    let dest = assets_dir.join(&file_name);
+    let dest = ws.resolve(&assets_dir.join(&file_name).to_string_lossy())?;
     fs::write(&dest, &data).map_err(|e| format!("write: {}", e))?;
     Ok(format!("assets/{}", file_name))
 }
 
-#[tauri::command]
-fn list_assets(workspace: String) -> Result<Vec<String>, String> {
-    let assets_dir = Path::new(&workspace).join("assets");
-    if !assets_dir.exists() {
+fn list_files_in(dir: &Path) -> Result<Vec<String>, String> {
+    if !dir.exists() {
         return Ok(vec![]);
     }
-    let mut entries = fs::read_dir(&assets_dir).map_err(|e| format!("read_dir: {}", e))?;
     let mut files = vec![];
-    while let Some(entry) = entries.next().transpose().map_err(|e| format!("entry: {}", e))? {
+    for entry in fs::read_dir(dir).map_err(|e| format!("read_dir: {}", e))? {
+        let entry = entry.map_err(|e| format!("entry: {}", e))?;
         if entry.file_type().map_err(|e| format!("ftype: {}", e))?.is_file() {
             if let Some(name) = entry.file_name().to_str() {
                 files.push(name.to_string());
@@ -42,70 +142,79 @@ fn list_assets(workspace: String) -> Result<Vec<String>, String> {
     Ok(files)
 }
 
-fn project_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .expect("failed to resolve project root")
-        .to_path_buf()
+#[tauri::command]
+fn list_assets(ws: Ws, workspace: String) -> Result<Vec<String>, String> {
+    list_files_in(&ws.resolve(&workspace)?.join("assets"))
+}
+
+/// List plain files directly inside `dir` (used for `.backups`).
+#[tauri::command]
+fn list_files(ws: Ws, dir: String) -> Result<Vec<String>, String> {
+    list_files_in(&ws.resolve(&dir)?)
 }
 
 #[tauri::command]
-fn get_workspace_dir(app: tauri::AppHandle) -> Result<String, String> {
-    let dir = workspace_dir(&app);
-    fs::create_dir_all(&dir).map_err(|e| format!("mkdir: {}", e))?;
-    Ok(dir.to_string_lossy().to_string())
+fn read_text_file(ws: Ws, path: String) -> Result<String, String> {
+    fs::read_to_string(ws.resolve(&path)?).map_err(|e| format!("read: {}", e))
 }
 
 #[tauri::command]
-fn read_text_file(path: String) -> Result<String, String> {
-    fs::read_to_string(&path).map_err(|e| format!("read: {}", e))
+fn read_binary_file(ws: Ws, path: String) -> Result<Vec<u8>, String> {
+    fs::read(ws.resolve(&path)?).map_err(|e| format!("read binary: {}", e))
 }
 
 #[tauri::command]
-fn read_binary_file(path: String) -> Result<Vec<u8>, String> {
-    fs::read(&path).map_err(|e| format!("read binary: {}", e))
-}
-
-#[tauri::command]
-fn write_text_file(path: String, content: String) -> Result<(), String> {
-    if let Some(parent) = Path::new(&path).parent() {
+fn write_text_file(ws: Ws, path: String, content: String) -> Result<(), String> {
+    let p = ws.resolve(&path)?;
+    if let Some(parent) = p.parent() {
         fs::create_dir_all(parent).map_err(|e| format!("mkdir parent: {}", e))?;
     }
-    fs::write(&path, &content).map_err(|e| format!("write: {}", e))
+    write_atomic(&p, content.as_bytes())
 }
 
 #[tauri::command]
-fn create_dir(path: String, recursive: bool) -> Result<(), String> {
+fn create_dir(ws: Ws, path: String, recursive: bool) -> Result<(), String> {
+    let p = ws.resolve(&path)?;
     if recursive {
-        fs::create_dir_all(&path).map_err(|e| format!("mkdir: {}", e))
+        fs::create_dir_all(&p).map_err(|e| format!("mkdir: {}", e))
     } else {
-        fs::create_dir(&path).map_err(|e| format!("mkdir: {}", e))
+        fs::create_dir(&p).map_err(|e| format!("mkdir: {}", e))
     }
 }
 
 #[tauri::command]
-fn remove_file(path: String) -> Result<(), String> {
-    fs::remove_file(&path).map_err(|e| format!("remove: {}", e))
+fn remove_file(ws: Ws, path: String) -> Result<(), String> {
+    fs::remove_file(ws.resolve(&path)?).map_err(|e| format!("remove: {}", e))
 }
 
 #[tauri::command]
-fn rename_file(old_path: String, new_path: String) -> Result<(), String> {
-    fs::rename(&old_path, &new_path).map_err(|e| format!("rename: {}", e))
+fn rename_file(ws: Ws, old_path: String, new_path: String) -> Result<(), String> {
+    fs::rename(ws.resolve(&old_path)?, ws.resolve(&new_path)?).map_err(|e| format!("rename: {}", e))
 }
 
 #[tauri::command]
-fn file_exists(path: String) -> bool {
-    Path::new(&path).exists()
+fn file_exists(ws: Ws, path: String) -> bool {
+    ws.resolve(&path).map(|p| p.exists()).unwrap_or(false)
 }
 
 #[tauri::command]
-fn export_pandoc(app: tauri::AppHandle, workspace: String, markdown: String, format: String) -> Result<Vec<u8>, String> {
+fn copy_file(ws: Ws, src: String, dest: String) -> Result<(), String> {
+    let src = ws.resolve(&src)?;
+    let dest = ws.resolve(&dest)?;
+    let data = fs::read(&src).map_err(|e| format!("read src: {}", e))?;
+    if let Some(parent) = dest.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("mkdir: {}", e))?;
+    }
+    write_atomic(&dest, &data)
+}
+
+#[tauri::command]
+fn export_pandoc(app: tauri::AppHandle, ws: Ws, workspace: String, markdown: String, format: String) -> Result<Vec<u8>, String> {
     use std::process::Command;
 
     // Look for a bundled pandoc next to the app executable first,
     // then fall back to system PATH.
     fn find_pandoc(app: &tauri::AppHandle) -> String {
-        // Check next to the running executable
         if let Ok(exe) = std::env::current_exe() {
             if let Some(dir) = exe.parent() {
                 let bundled = dir.join("pandoc.exe");
@@ -114,27 +223,25 @@ fn export_pandoc(app: tauri::AppHandle, workspace: String, markdown: String, for
                 }
             }
         }
-        // Check Tauri resource dir (for production builds)
         if let Ok(res_dir) = app.path().resource_dir() {
             let bundled = res_dir.join("pandoc.exe");
             if bundled.exists() {
                 return bundled.to_string_lossy().to_string();
             }
         }
-        // Fall back to system PATH
         "pandoc".to_string()
     }
 
     let pandoc_bin = find_pandoc(&app);
 
-    let ws_path = Path::new(&workspace);
-    let in_path = ws_path.join(".temp_export.md");
-    let out_path = ws_path.join(format!(".temp_export.{}", format));
+    let ws_path = ws.resolve(&workspace)?;
+    let in_path = ws.resolve(&ws_path.join(".temp_export.md").to_string_lossy())?;
+    let out_path = ws.resolve(&ws_path.join(format!(".temp_export.{}", format)).to_string_lossy())?;
 
     fs::write(&in_path, &markdown).map_err(|e| format!("write md error: {}", e))?;
 
     let output = Command::new(&pandoc_bin)
-        .current_dir(&workspace)
+        .current_dir(&ws_path)
         .arg(&in_path)
         .arg("-o")
         .arg(&out_path)
@@ -158,15 +265,6 @@ fn export_pandoc(app: tauri::AppHandle, workspace: String, markdown: String, for
     Ok(bytes)
 }
 
-#[tauri::command]
-fn copy_file(src: String, dest: String) -> Result<(), String> {
-    let data = fs::read(&src).map_err(|e| format!("read src: {}", e))?;
-    if let Some(parent) = Path::new(&dest).parent() {
-        fs::create_dir_all(parent).map_err(|e| format!("mkdir: {}", e))?;
-    }
-    fs::write(&dest, &data).map_err(|e| format!("write dest: {}", e))
-}
-
 // ── Hadith ────────────────────────────────────────────────────────────
 
 const HADITH_BOOKS: &[&str] = &[
@@ -179,15 +277,17 @@ fn get_hadith_books() -> Vec<&'static str> {
 }
 
 #[tauri::command]
-fn read_hadith_book(book: String) -> Result<String, String> {
+fn read_hadith_book(app: tauri::AppHandle, book: String) -> Result<String, String> {
     if !HADITH_BOOKS.contains(&book.as_str()) {
         return Err(format!("unknown book: {}", book));
     }
-    let path = project_root().join(format!(
-        "docs/hadith-json-1.2.0/db/by_book/the_9_books/{}.json",
-        book
-    ));
-    fs::read_to_string(&path).map_err(|e| format!("read hadith: {}", e))
+    // Bundled as `hadith/<book>.json` (see tauri.conf.json bundle.resources).
+    let path = resource_path(
+        &app,
+        &format!("hadith/{}.json", book),
+        &format!("docs/hadith-json-1.2.0/db/by_book/the_9_books/{}.json", book),
+    );
+    fs::read_to_string(&path).map_err(|e| format!("read hadith {:?}: {}", path, e))
 }
 
 // ── Arabic dictionary lookup ──────────────────────────────────────────
@@ -214,17 +314,8 @@ const DICTS: &[(&str, &str, &str, &str)] = &[
     ("lanelexcon", "لين", "Lane's Lexicon", "ar_en"),
 ];
 
-fn dict_db_path(app: Option<&tauri::AppHandle>) -> PathBuf {
-    if let Some(app) = app {
-        if let Ok(resource_dir) = app.path().resource_dir() {
-            let path = resource_dir.join("db/dicts.sqlite");
-            if path.exists() {
-                return path;
-            }
-        }
-    }
-    // Development fallback: project_root() -> parent of src-tauri/
-    project_root().join("src-tauri/db/dicts.sqlite")
+fn dict_db_path(app: &tauri::AppHandle) -> PathBuf {
+    resource_path(app, "db/dicts.sqlite", "src-tauri/db/dicts.sqlite")
 }
 
 /// Search a word/root in a specific dictionary.
@@ -278,7 +369,7 @@ fn search_dictionary(
     search_mode: Option<String>,   // "word" | "root", default "word"
     dict_group: Option<String>,    // "all" | "ar" | "ar_en", default "all"
 ) -> Result<Vec<DictEntry>, String> {
-    let db_path = dict_db_path(Some(&app));
+    let db_path = dict_db_path(&app);
     let conn =
         Connection::open(&db_path).map_err(|e| format!("open db {:?}: {}", db_path, e))?;
 
@@ -331,20 +422,12 @@ struct SpellcheckState {
     dict: Mutex<Option<Dictionary<spellbook::DefaultHashBuilder>>>,
 }
 
-fn hunspell_dir(app: Option<&tauri::AppHandle>) -> PathBuf {
-    if let Some(app) = app {
-        if let Ok(resource_dir) = app.path().resource_dir() {
-            let dir = resource_dir.join("hunspell");
-            if dir.exists() {
-                return dir;
-            }
-        }
-    }
-    project_root().join("src-tauri/resources/hunspell")
+fn hunspell_dir(app: &tauri::AppHandle) -> PathBuf {
+    resource_path(app, "hunspell", "src-tauri/resources/hunspell")
 }
 
 fn load_dictionary(app: &tauri::AppHandle) -> Result<Dictionary<spellbook::DefaultHashBuilder>, String> {
-    let dir = hunspell_dir(Some(app));
+    let dir = hunspell_dir(app);
     let dic_path = dir.join("ar.dic");
     let aff_path = dir.join("ar.aff");
 
@@ -404,8 +487,27 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .manage(SpellcheckState { dict: Mutex::new(None) })
+        .setup(|app| {
+            let handle = app.handle();
+            let default_ws = workspace_dir(handle);
+            let _ = fs::create_dir_all(&default_ws);
+            let store = handle
+                .path()
+                .app_config_dir()
+                .map_err(|e| format!("config dir: {}", e))?
+                .join("trusted-workspaces.json");
+            let registry = WorkspaceRegistry::load(store, &default_ws);
+            for root in registry.roots() {
+                allow_asset_dir(handle, &root);
+            }
+            app.manage(registry);
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             get_workspace_dir,
+            pick_workspace,
+            open_workspace,
+            list_files,
             read_text_file,
             read_binary_file,
             write_text_file,

@@ -1,10 +1,11 @@
 {
   "identifier": "default",
-  "description": "Default capabilities",
+  "description": "Default capabilities. Native dialogs are opened from Rust only (workspace picker / trust prompt), so the webview gets no dialog permission. Opener is limited to http(s)/mailto/tel URLs for external links.",
   "windows": ["main"],
   "permissions": [
     "core:default",
     "core:window:default",
-    "dialog:default"
+    "opener:allow-open-url",
+    "opener:allow-default-urls"
   ]
 }

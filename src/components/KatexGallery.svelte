@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import katex from 'katex';
+  import { sanitizeHtml } from '$lib/sanitize';
 
   export let onInsert: (latex: string) => void;
 
@@ -579,7 +580,7 @@
             <button class="kg-item" on:click={() => onInsert(item.latex)}>
               <div class="kg-preview" dir="ltr">
                 {#if previewCache[item.preview]}
-                  {@html previewCache[item.preview]}
+                  {@html sanitizeHtml(previewCache[item.preview])}
                 {:else}
                   <code>{item.code}</code>
                 {/if}
