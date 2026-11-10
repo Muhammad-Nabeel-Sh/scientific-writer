@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { renderDocument, analyzeMarkdown, renderMarkdown } from '$lib/markdown';
+import { renderTex } from '$lib/md/math';
 import { parseBibTeX } from '$lib/bibliography';
 
 const bib = parseBibTeX(`@book{smith2020, author={Smith, John}, title={T}, year={2020}}`);
@@ -56,6 +57,12 @@ describe('equations', () => {
     expect(renderDocument('$$\nس + ص = \\text{السرعة}\n$$').warnings).toEqual([]);
     expect(warn).not.toHaveBeenCalled();
     warn.mockRestore();
+  });
+
+  it('exposes per-equation diagnostics for the equation dialog', () => {
+    const warnings: string[] = [];
+    renderTex('\\notamacro{x}', true, (m) => warnings.push(m));
+    expect(warnings.some((m) => /notamacro/.test(m))).toBe(true);
   });
 
   it('keeps western digits in math and converts prose digits (eastern)', () => {

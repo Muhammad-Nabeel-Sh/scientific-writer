@@ -3,19 +3,42 @@
   import { noteContent } from '$lib/stores';
   import katex from 'katex';
   import { sanitizeHtml } from '$lib/sanitize';
-  import { parseEquationsFromText } from '$lib/markdown';
-  import type { EquationInfo } from '$lib/markdown';
+  import { analyzeMarkdown } from '$lib/markdown';
+  import { renderTex } from '$lib/md/math';
   import KatexGallery from './KatexGallery.svelte';
 
   export let insertAtCursor: (text: string) => void;
 
   const dispatch = createEventDispatcher<{ close: void }>();
 
+  interface DocEquation {
+    number: number;
+    latex: string;
+    preview: string;
+    label?: string;
+    warnings: string[];
+  }
+
   let equationInput = '';
   let previewHtml = '';
   let previewError = false;
-  let documentEquations: Array<{ number: number; latex: string; preview: string }> = [];
+  let documentEquations: DocEquation[] = [];
   let inputRef: HTMLTextAreaElement;
+
+  // Equations and their math diagnostics come from the same parse the preview
+  // uses. Warnings are produced by rendering each equation with the shared
+  // KaTeX call (analyzeMarkdown itself does not do KaTeX work).
+  $: documentEquations = analyzeMarkdown($noteContent).equations.map((eq) => {
+    const warnings: string[] = [];
+    const preview = renderTex(eq.latex, true, (message) => warnings.push(message));
+    return {
+      number: eq.number,
+      latex: eq.latex,
+      preview,
+      label: eq.label,
+      warnings,
+    };
+  });
 
   $: if (equationInput.trim()) {
     try {
@@ -32,31 +55,16 @@
 
   onMount(() => {
     inputRef?.focus();
-    const eqs = parseEquationsFromText($noteContent);
-    documentEquations = eqs.map(eq => ({
-      number: eq.number,
-      latex: eq.latex,
-      preview: renderLatexPreview(eq.latex),
-    }));
   });
 
-  function renderLatexPreview(latex: string): string {
-    if (!latex || !latex.trim()) return '';
-    try {
-      return katex.renderToString(latex, { displayMode: true, throwOnError: false });
-    } catch {
-      return '<span style="color:#ff6b6b">خطأ</span>';
-    }
+  function citeEquation(eq: DocEquation) {
+    insertAtCursor(`[ref:eq:${eq.label ?? eq.number}]`);
+    dispatch('close');
   }
 
   function addEquation() {
     if (!equationInput.trim()) return;
     insertAtCursor(`\n$$\n${equationInput.trim()}\n$$\n`);
-    dispatch('close');
-  }
-
-  function citeEquation(number: number) {
-    insertAtCursor(`[ref:eq:${number}]`);
     dispatch('close');
   }
 
@@ -124,8 +132,24 @@
             {#each documentEquations as eq}
               <div class="eq-list-item">
                 <div class="eq-item-number">({eq.number})</div>
-                <div class="eq-item-preview" dir="ltr">{@html sanitizeHtml(eq.preview)}</div>
-                <button class="btn-cite" on:click={() => citeEquation(eq.number)}>
+                <div class="eq-item-main">
+                  <div class="eq-item-preview" dir="ltr">{@html sanitizeHtml(eq.preview)}</div>
+                  {#if eq.label}
+                    <div class="eq-item-label">#eq:{eq.label}</div>
+                  {/if}
+                  {#if eq.warnings.length > 0}
+                    <div class="eq-item-warnings" dir="rtl">
+                      {#each eq.warnings as warning}
+                        <span class="eq-warning">⚠ {warning}</span>
+                      {/each}
+                    </div>
+                  {/if}
+                </div>
+                <button
+                  class="btn-cite"
+                  title={eq.label ? `إدراج [ref:eq:${eq.label}]` : `إدراج [ref:eq:${eq.number}]`}
+                  on:click={() => citeEquation(eq)}
+                >
                   استشهاد
                 </button>
               </div>
@@ -310,12 +334,37 @@
   }
   .eq-list-item {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 8px;
     padding: 8px 10px;
     background: #1a1a1a;
     border-radius: 6px;
     border: 1px solid var(--border);
+  }
+  .eq-item-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .eq-item-label {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--fg-muted);
+    direction: ltr;
+    unicode-bidi: isolate;
+    text-align: start;
+  }
+  .eq-item-warnings {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    text-align: start;
+  }
+  .eq-warning {
+    font-size: 0.72rem;
+    color: #f0c674;
   }
   .eq-item-number {
     flex-shrink: 0;
@@ -326,7 +375,7 @@
     text-align: center;
   }
   .eq-item-preview {
-    flex: 1;
+    width: 100%;
     min-width: 0;
     overflow-x: auto;
     display: flex;
