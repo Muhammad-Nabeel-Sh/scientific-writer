@@ -157,6 +157,13 @@ md.renderer.rules.image = (tokens, idx, options, env, self) => {
   </figure>`;
 };
 
+function countDisplayMathDelimiters(line: string): number {
+  // Ignore $$ inside inline code and escaped \$\$.
+  const withoutCode = line.replace(/`[^`]*`/g, '');
+  const withoutEscaped = withoutCode.replace(/\\\$\$/g, '');
+  return (withoutEscaped.match(/\$\$/g) || []).length;
+}
+
 function convertArabicDigits(text: string, style: DigitStyle = 'auto'): string {
   if (style === 'western') return text;
   const shouldConvert = style === 'eastern' || (style === 'auto' && arabicRe.test(text));
@@ -274,9 +281,12 @@ export function renderMarkdown(text: string, bibEntries?: BibEntry[], digitStyle
 
     const style = digitStyle || 'auto';
 
-    // Pre-process: convert digits (configurable) and turn soft returns into hard returns
+    // Pre-process: convert digits (configurable) and turn soft returns into hard returns.
+    // Multi-line $$…$$ blocks are left untouched: converting their digits corrupts
+    // the TeX, and inserting blank lines inside them breaks the math block.
     const lines = text.split('\n');
     let inFence = false;
+    let inDisplayMath = false;
     const resultLines: string[] = [];
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
@@ -284,12 +294,18 @@ export function renderMarkdown(text: string, bibEntries?: BibEntry[], digitStyle
       if (isFenceLine) {
         inFence = !inFence;
       }
-      if (!inFence && !isFenceLine && !/^ {4}/.test(line)) {
+
+      const wasInDisplayMath = inDisplayMath;
+      const delimiters = !inFence && !isFenceLine ? countDisplayMathDelimiters(line) : 0;
+      if (delimiters % 2 === 1) inDisplayMath = !inDisplayMath;
+      const isMathLine = !inFence && !isFenceLine && (wasInDisplayMath || delimiters > 0);
+
+      if (!inFence && !isFenceLine && !/^ {4}/.test(line) && !isMathLine) {
         resultLines.push(convertArabicDigits(line, style));
       } else {
         resultLines.push(line);
       }
-      if (!inFence && !isFenceLine && !line.trimStart().startsWith('|')) {
+      if (!inFence && !isFenceLine && !isMathLine && !line.trimStart().startsWith('|')) {
         resultLines.push(''); // blank line → hard return (new paragraph)
       }
     }

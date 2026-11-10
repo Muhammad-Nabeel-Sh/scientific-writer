@@ -47,8 +47,21 @@ describe('renderMarkdown golden snapshots', () => {
     expect(html).toMatchSnapshot();
   });
 
-  // Found in the review (A.6.1): convertArabicDigits protects $$…$$ only when
-  // both delimiters are on one line, so multi-line display math is corrupted
-  // to Arabic-Indic digits when digitStyle is "eastern" (or "auto" + Arabic).
-  it.todo('renderMarkdown must not convert digits inside multi-line display math');
+  it('does not convert digits inside multi-line display math', () => {
+    const html = renderMarkdown('$$\ns_1^2 + x_2\n$$', [], 'eastern');
+    expect(html).not.toContain('خطأ في تحليل المعادلات الرياضية');
+    expect(html).toContain('s_1^2 + x_2');
+    expect(html).not.toContain('s_١');
+    expect(html).toMatch(/katex/);
+  });
+
+  it('does not convert digits inside Arabic display math with auto style', () => {
+    const html = renderMarkdown('$$\n\\text{السرعة} = 2t\n$$', [], 'auto');
+    expect(html).toContain('2t');
+    expect(html).not.toContain('٢t');
+  });
+
+  it('still converts digits in prose', () => {
+    expect(renderMarkdown('السرعة 2 متر', [], 'eastern')).toContain('٢');
+  });
 });
