@@ -40,10 +40,11 @@ scientific-writer/
 | `npm run dev` | Frontend-only Vite dev server (http://localhost:1420) |
 | `npm run build` | Build frontend to `dist/` |
 | `npm run check` | Typecheck: `svelte-kit sync && svelte-check --tsconfig ./tsconfig.json` |
+| `npm run test` | Unit/golden tests (Vitest) |
 | `npm run tauri dev` | Full Tauri desktop app with hot reload |
 | `npm run tauri build` | Build production desktop app bundle |
 
-Run `check` before committing. No lint or test infrastructure exists yet.
+Run `check` and `test` before committing.
 
 ## Svelte convention
 Written in Svelte 5 compatibility syntax (no runes): `$:` reactive statements, `$store` auto-subscription, `on:event` handlers, `createEventDispatcher`. Follow existing style for consistency.
