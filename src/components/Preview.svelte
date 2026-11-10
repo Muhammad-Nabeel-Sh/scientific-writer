@@ -16,6 +16,8 @@
 
   const RENDER_DELAY = 150;
 
+  let content = "";
+  let entries: BibEntry[] = [];
   $: content = $noteContent;
   $: entries = $bibEntries;
 
