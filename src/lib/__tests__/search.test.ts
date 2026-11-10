@@ -36,7 +36,9 @@ describe('normalizeArabic', () => {
     expect(normalizeArabic('Hello World')).toBe('Hello World');
   });
 
-  // Found during P0.4: Arabic presentation forms (e.g. the lam-alef ligature
-  // U+FEFB) are not folded, so text pasted from PDFs may not match search queries.
-  it.todo('normalizeArabic should fold Arabic presentation forms such as U+FEFB to their base letters');
+  it('folds Arabic presentation forms and ligatures', () => {
+    expect(normalizeArabic('ﻻ')).toBe('لا');
+    expect(normalizeArabic('ﻣﺪﺭﺳﺔ')).toBe('مدرسه');
+    expect(normalizeArabic('ﺇﺳﻼﻡ')).toBe('اسلام');
+  });
 });

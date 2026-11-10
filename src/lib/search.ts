@@ -9,9 +9,9 @@ function stripDiacritics(s: string): string {
   return s.replace(DIACRITICS, '');
 }
 
-/** Normalize Arabic for search: strip diacritics, unify alif/ya/ta/waw */
+/** Normalize Arabic for search: fold presentation forms, strip diacritics, unify alif/ya/ta/waw */
 export function normalizeArabic(s: string): string {
-  return stripDiacritics(s)
+  return stripDiacritics(s.normalize('NFKC'))
     .replace(/[إأآا]/g, 'ا')
     .replace(/ى/g, 'ي')
     .replace(/ة/g, 'ه')
