@@ -13,6 +13,16 @@ describe('computeStats', () => {
     expect(computeStats('كَتَبَ الطالبُ الدرسَ')).toMatchObject({ words: 3, characters: 14 });
   });
 
+  it('counts Latin words and letters in mixed Arabic/English text', () => {
+    expect(computeStats('Hello world')).toMatchObject({ words: 2, characters: 10 });
+    expect(computeStats('مرحبا hello world')).toMatchObject({ words: 3, characters: 15 });
+  });
+
+  it('ignores code and math when counting prose', () => {
+    expect(computeStats('`const x = 1` نص')).toMatchObject({ words: 1, characters: 2 });
+    expect(computeStats('$$\ns_1^2\n$$')).toMatchObject({ words: 0, characters: 0 });
+  });
+
   it('counts paragraphs and headings', () => {
     expect(computeStats('# عنوان\n\nنص')).toMatchObject({ paragraphs: 2, headings: 1 });
     expect(computeStats('## أ\n### ب')).toMatchObject({ headings: 2 });
@@ -37,10 +47,6 @@ describe('computeStats', () => {
   it('counts multi-line paragraphs separated by blank lines', () => {
     expect(computeStats('سطر1\nسطر2\n\nفقرة2')).toMatchObject({ paragraphs: 2, words: 3 });
   });
-
-  // Found during P0.4: word/character counts only include tokens containing
-  // Arabic letters, so Latin words in mixed scientific texts are ignored.
-  it.todo('computeStats should count Latin words in mixed Arabic/English text');
 });
 
 describe('addStats', () => {
