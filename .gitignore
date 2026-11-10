@@ -11,3 +11,15 @@ vite.config.ts.timestamp-*
 
 # Arabic dictionaries SQLite
 src-tauri/db/
+
+# Visual Studio caches
+.vs/
+
+# Rust build artifacts
+src-tauri/target/
+
+# SQLite journals
+*.sqlite-journal
+
+# Pandoc temporary exports
+.temp_export.*
