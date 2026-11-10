@@ -80,8 +80,7 @@
       class="search-input"
       placeholder="ابحث عن مرجع..."
       dir="rtl"
-      autofocus
-    /><!-- svelte-ignore a11y_autofocus -->
+    />
 
     <div class="results">
       {#if entries.length === 0}

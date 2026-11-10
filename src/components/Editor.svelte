@@ -12,6 +12,7 @@
     exportStatus,
   } from "$lib/stores";
   import { get } from "svelte/store";
+  import { tick } from "svelte";
   import { writeNote, writeBibliography, getWorkspaceDir } from "$lib/fs";
   import { parseBibTeX } from "$lib/bibliography";
   import { invoke } from "@tauri-apps/api/core";
@@ -53,6 +54,7 @@
   let showWikiLinkDialog = false;
   let showTypographyDialog = false;
   let wikiLinkSearch = "";
+  let wikiLinkInput: HTMLInputElement;
   let tableRows = 3;
   let tableCols = 4;
   let tableLang: "arabic" | "english" = "arabic";
@@ -320,6 +322,12 @@
     ta.selectionStart = ta.selectionEnd = pos;
     ta.focus();
     ta.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  async function openWikiLinkDialog() {
+    showWikiLinkDialog = true;
+    await tick();
+    wikiLinkInput?.focus();
   }
 
   function insertWikiLink(name: string) {
@@ -611,7 +619,7 @@
     <button
       class="tb"
       title="رابط داخلي"
-      on:click={() => (showWikiLinkDialog = true)}
+      on:click={openWikiLinkDialog}
     >
       <svg
         viewBox="0 0 24 24"
@@ -893,11 +901,11 @@
       >
         <h3>إدراج رابط داخلي</h3>
         <input
+          bind:this={wikiLinkInput}
           type="text"
           class="wiki-search"
           placeholder="ابحث عن ملاحظة..."
           bind:value={wikiLinkSearch}
-          autofocus
         />
         <div class="wiki-note-list">
           {#if filteredNotes.length === 0}

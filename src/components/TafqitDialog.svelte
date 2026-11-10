@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createEventDispatcher } from "svelte";
+  import { createEventDispatcher, onMount } from "svelte";
   import { convertToArabicWords } from "$lib/tafqit";
 
   export let insertAtCursor: (text: string) => void;
@@ -8,6 +8,11 @@
 
   let input = "";
   let result = "";
+  let inputEl: HTMLInputElement;
+
+  onMount(() => {
+    inputEl?.focus();
+  });
 
   const easternDigits: Record<string, string> = {
     "٠": "0", "١": "1", "٢": "2", "٣": "3", "٤": "4",
@@ -63,12 +68,12 @@
     <h3>تفقيط الأعداد</h3>
     <p class="hint">أدخل رقماً لتحويله إلى كتابة عربية (يدعم الكسور)</p>
     <input
+      bind:this={inputEl}
       type="text"
       class="num-input"
       placeholder="مثال: 342.50 أو ٣٤٢٫٥٠"
       value={input}
       on:input={update}
-      autofocus
       dir="auto"
     />
     <div class="result-box" class:has-result={result && !result.startsWith("الرقم") && !result.startsWith("الرجاء")}>

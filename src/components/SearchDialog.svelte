@@ -2,7 +2,7 @@
   import { hierarchy, activeNoteId } from '$lib/stores';
   import { buildIndex, searchIndex, normalizeArabic } from '$lib/search';
   import type { SearchIndex, SearchResult, SearchMatch, MatchType } from '$lib/search';
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
 
   export let show = false;
 
@@ -11,6 +11,7 @@
   let results: SearchResult[] = [];
   let indexing = false;
   let searched = false;
+  let inputEl: HTMLInputElement;
 
   const matchLabels: Record<MatchType, string> = {
     title: 'عنوان',
@@ -77,6 +78,7 @@
 
   $: if (show) {
     ensureIndex();
+    tick().then(() => inputEl?.focus());
   }
 
   onMount(() => {
@@ -137,10 +139,10 @@
             class="search-input"
             type="text"
             placeholder="ابحث في الملاحظات…"
+            bind:this={inputEl}
             bind:value={query}
             on:input={onInput}
             on:keydown={(e) => { if (e.key === 'Enter') doSearch(); }}
-            autofocus
           />
           {#if query}
             <button class="clear-btn" on:click={() => { query = ''; results = []; searched = false; }}>✕</button>

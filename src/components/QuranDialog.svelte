@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, onMount } from 'svelte';
   import { searchQuran, getVersesInRange, getMaxAyah, formatVerse, formatVerseRange, type Verse } from '$lib/quran';
 
   export let appendText: (text: string) => void;
@@ -9,6 +9,10 @@
   let query = '';
   let results: Verse[] = [];
   let inputEl: HTMLInputElement;
+
+  onMount(() => {
+    inputEl?.focus();
+  });
 
   let expandedSurah = 0;
   let rangeFrom = 1;
@@ -66,8 +70,7 @@
       class="search-input"
       placeholder="ابحث بكلمة أو آية..."
       dir="rtl"
-      autofocus
-    /><!-- svelte-ignore a11y_autofocus -->
+    />
 
     <div class="results">
       {#if results.length === 0 && query.trim()}

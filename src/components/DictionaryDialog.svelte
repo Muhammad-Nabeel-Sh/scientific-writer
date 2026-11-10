@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createEventDispatcher } from "svelte";
+  import { createEventDispatcher, onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
 
   export let appendText: (text: string) => void;
@@ -21,6 +21,10 @@
   let loading = false;
   let error = "";
   let inputEl: HTMLInputElement;
+
+  onMount(() => {
+    inputEl?.focus();
+  });
 
   $: if (dicts.length === 0) {
     invoke<typeof dicts>("list_dictionaries")
@@ -109,8 +113,7 @@
         class="search-input"
         placeholder="ابحث عن كلمة..."
         dir="rtl"
-        autofocus
-      /><!-- svelte-ignore a11y_autofocus -->
+      />
       <button
         class="mode-btn"
         class:active={searchMode === "word"}

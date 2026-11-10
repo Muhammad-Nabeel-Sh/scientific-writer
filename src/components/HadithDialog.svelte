@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createEventDispatcher, onMount } from 'svelte';
+  import { createEventDispatcher, onMount, tick } from 'svelte';
   import { loadAllHadiths, searchHadiths, formatHadithInsert, type HadithSearchResult } from '$lib/hadith';
 
   export let appendText: (text: string) => void;
@@ -11,6 +11,7 @@
   let loading = true;
   let loadStatus = 'جاري تحميل بيانات الأحاديث...';
   let totalLoaded = 0;
+  let inputEl: HTMLInputElement;
 
   onMount(async () => {
     await loadAllHadiths((key, done) => {
@@ -19,6 +20,8 @@
     });
     loading = false;
     loadStatus = `تم تحميل ${totalLoaded} حديث`;
+    await tick();
+    inputEl?.focus();
   });
 
   function handleInput() {
@@ -43,15 +46,15 @@
     </div>
 
     <input
+      bind:this={inputEl}
       bind:value={query}
       on:input={handleInput}
       on:keydown={onKeydown}
       class="search-input"
       placeholder={loading ? loadStatus : 'ابحث في الأحاديث...'}
       dir="rtl"
-      autofocus
       disabled={loading}
-    /><!-- svelte-ignore a11y_autofocus -->
+    />
 
     {#if loading}
       <div class="loading-bar">
