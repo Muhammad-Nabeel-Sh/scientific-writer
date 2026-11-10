@@ -75,7 +75,7 @@
           <div class="item">
             <span class="label">القواميس:</span><a
               href="https://github.com/wizsk/arabic_lexicons">arabic_lexicons</a
-            > (11 معجماً)
+            > (10 معاجم)
           </div>
           <div class="item">
             <span class="label">الحديث:</span><a
@@ -130,7 +130,6 @@
     align-items: center;
     justify-content: center;
     z-index: 9999;
-    backdrop-filter: blur(4px);
     transition: opacity 0.5s ease;
     opacity: 1;
   }

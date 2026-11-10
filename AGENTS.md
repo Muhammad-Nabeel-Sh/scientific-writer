@@ -38,7 +38,7 @@ scientific-writer/
 ## Developer commands (run from `scientific-writer/`)
 | Command | Purpose |
 |---------|---------|
-| `npm run dev` | Frontend-only Vite dev server (http://localhost:1420) |
+| `npm run dev` | Frontend-only Vite server (http://localhost:1420); no Tauri IPC — use `npm run tauri dev` for files/dictionaries |
 | `npm run build` | Build the frontend to `build/` |
 | `npm run check` | Typecheck: `svelte-kit sync && svelte-check --tsconfig ./tsconfig.json` |
 | `npm run test` | Unit/golden tests (Vitest) |

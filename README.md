@@ -83,7 +83,7 @@ Run from the repository root.
 
 | Command | Purpose |
 |---|---|
-| `npm run dev` | Frontend-only Vite dev server (http://localhost:1420) |
+| `npm run dev` | Frontend-only Vite dev server (no Tauri backend; use `npm run tauri dev` for the desktop app) |
 | `npm run build` | Build the frontend to `dist/` |
 | `npm run check` | Typecheck (`svelte-kit sync && svelte-check`) |
 | `npm run test` | Unit and golden-snapshot tests (Vitest) |

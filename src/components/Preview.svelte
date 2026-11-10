@@ -6,7 +6,7 @@
   } from "$lib/stores";
   import { renderMarkdown, getLastCitationResult } from "$lib/markdown";
   import { getWorkspaceDir } from "$lib/fs";
-  import { convertFileSrc } from "@tauri-apps/api/core";
+  import { convertFileSrc, isTauri } from "@tauri-apps/api/core";
   import { applyKashida, clearKashida } from "$lib/kashida";
   import { renderWikiLinks } from "$lib/backlinks";
   import { sanitizeHtml } from "$lib/sanitize";
@@ -23,6 +23,7 @@
   $: if (previewEl) $previewRef = previewEl;
 
   async function init() {
+    if (!isTauri()) return; // browser-only preview: no workspace/assets
     workspaceDir = await getWorkspaceDir();
   }
   init();

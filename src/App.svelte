@@ -11,6 +11,7 @@
   import { installExternalLinkHandler } from "$lib/external-links";
   import { onMount } from "svelte";
   import { getCurrentWindow } from "@tauri-apps/api/window";
+  import { isTauri } from "@tauri-apps/api/core";
   import { initWorkspace, readNote, ensureBibliography, backupNote, clearWorkspaceCache } from "$lib/fs";
   import { parseBibTeX } from "$lib/bibliography";
   import { buildBacklinksIndex, updateBacklinksForNote } from "$lib/backlinks";
@@ -40,6 +41,11 @@
   let showQuickOpen = false;
   let showAssets = false;
 
+  // `npm run dev` serves the frontend to a normal browser, where the Tauri IPC
+  // bridge does not exist. Detect it so the UI degrades gracefully instead of
+  // throwing "cannot read invoke/metadata" on startup.
+  const isTauriRuntime = typeof window !== "undefined" && isTauri();
+
   function setProportions() {
     const w = window.innerWidth - 12;
     leftWidth = w * 0.2;
@@ -50,6 +56,15 @@
     setProportions();
     loadRecentWorkspaces();
     loadKeybindings();
+
+    if (!isTauriRuntime) {
+      console.warn(
+        "[app] Tauri runtime not detected. Run `npm run tauri dev` to open the desktop app.",
+      );
+      showSplash = false;
+      return;
+    }
+
     const data = await initWorkspace(fromWorkspace);
     $hierarchy = data;
     pushHierarchySnapshot(data);
@@ -212,24 +227,26 @@
     // keystrokes from the last 500 ms are never lost. The first close request
     // is cancelled; after flushing we close again and let the second pass
     // through (the flag prevents an infinite loop).
-    getCurrentWindow()
-      .onCloseRequested(async (event) => {
-        if (closing) return;
-        closing = true;
-        event.preventDefault();
-        try {
-          await noteSaver.flush();
-          await getCurrentWindow().close();
-        } catch (e) {
-          closing = false;
-          console.error("[window] close after flush failed:", e);
-        }
-      })
-      .then((fn) => {
-        if (disposed) fn();
-        else unlisten = fn;
-      })
-      .catch((e) => console.error("[window] close handler:", e));
+    if (isTauriRuntime) {
+      getCurrentWindow()
+        .onCloseRequested(async (event) => {
+          if (closing) return;
+          closing = true;
+          event.preventDefault();
+          try {
+            await noteSaver.flush();
+            await getCurrentWindow().close();
+          } catch (e) {
+            closing = false;
+            console.error("[window] close after flush failed:", e);
+          }
+        })
+        .then((fn) => {
+          if (disposed) fn();
+          else unlisten = fn;
+        })
+        .catch((e) => console.error("[window] close handler:", e));
+    }
 
     return () => {
       disposed = true;
@@ -324,6 +341,15 @@
   <div class="handle" on:mousedown={(e) => startDrag(e, "left")}></div>
 
   <main class="panel center">
+    {#if !isTauriRuntime}
+      <div
+        class="runtime-warning"
+        dir="rtl"
+        style="padding:8px 12px;background:#3a2a12;border-bottom:1px solid #5a4020;color:#f0c674;font-size:0.85rem;text-align:center;"
+      >
+        هذا عرض للمتصفح فقط. شغّل <code style="direction:ltr;unicode-bidi:isolate;">npm run tauri dev</code> لفتح التطبيق المكتبي وتفعيل الملفات والقواميس.
+      </div>
+    {/if}
     <Tabs {switchToTab} {onCloseTab} />
     <Editor />
   </main>

@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { invoke, isTauri } from '@tauri-apps/api/core';
 import type { TreeNode } from './stores';
 
 let WORKSPACE_DIR: string;
@@ -14,6 +14,9 @@ const WORKSPACE_KEY = 'scientific_writer_workspace';
 let resolving: Promise<string> | null = null;
 
 export async function getWorkspaceDir(): Promise<string> {
+  if (!isTauri()) {
+    throw new Error('Tauri runtime not available. Run `npm run tauri dev` for the desktop app.');
+  }
   if (WORKSPACE_DIR) return WORKSPACE_DIR;
   // Concurrent callers at startup share one resolution (one native prompt at most).
   if (!resolving) resolving = resolveWorkspaceDir().finally(() => { resolving = null; });
