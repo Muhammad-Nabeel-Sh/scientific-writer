@@ -190,11 +190,6 @@ fn read_hadith_book(book: String) -> Result<String, String> {
     fs::read_to_string(&path).map_err(|e| format!("read hadith: {}", e))
 }
 
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {name}!")
-}
-
 // ── Arabic dictionary lookup ──────────────────────────────────────────
 
 #[derive(Serialize)]
@@ -317,24 +312,6 @@ fn search_dictionary(
 }
 
 #[tauri::command]
-fn debug_dictionary_path(app: tauri::AppHandle) -> Result<String, String> {
-    let resource_info = match app.path().resource_dir() {
-        Ok(dir) => {
-            let p = dir.join("db/dicts.sqlite");
-            format!("{:?} (exists: {})", p, p.exists())
-        }
-        Err(e) => format!("error: {}", e),
-    };
-    let dev_path = project_root().join("src-tauri/db/dicts.sqlite");
-    Ok(format!(
-        "resource: {}\ndev: {:?} (exists: {})",
-        resource_info,
-        dev_path,
-        dev_path.exists(),
-    ))
-}
-
-#[tauri::command]
 fn list_dictionaries() -> Vec<serde_json::Value> {
     DICTS.iter()
         .map(|(table, ar, en, group)| {
@@ -428,7 +405,6 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .manage(SpellcheckState { dict: Mutex::new(None) })
         .invoke_handler(tauri::generate_handler![
-            greet,
             get_workspace_dir,
             read_text_file,
             read_binary_file,
@@ -445,7 +421,6 @@ pub fn run() {
             read_hadith_book,
             search_dictionary,
             list_dictionaries,
-            debug_dictionary_path,
             check_spelling,
         ])
         .run(tauri::generate_context!())

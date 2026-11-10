@@ -9,7 +9,7 @@
 - **Fuzzy search**: fuse.js v7
 - **Hijri calendar**: @umalqura/core
 - **Word export**: docx (via Pandoc)
-- **Dictionaries**: rusqlite with 11 Arabic lexicons embedded
+- **Dictionaries**: rusqlite with 10 Arabic lexicons embedded
 
 ## Project layout
 ```
@@ -21,7 +21,7 @@ scientific-writer/
 │   ├── lib/              # Stores, FS wrapper, markdown, search, templates…
 │   └── routes/           # +page.svelte, +layout.svelte, +layout.ts
 ├── src-tauri/            # Rust Tauri backend
-│   ├── src/lib.rs        # 16 commands: file I/O, hadith, dictionary, pandoc
+│   ├── src/lib.rs        # 17 commands: file I/O, assets, hadith, dictionary, spellcheck, pandoc
 │   ├── src/main.rs
 │   ├── db/dicts.sqlite   # Embedded Arabic lexicons database
 │   ├── tauri.conf.json
@@ -71,8 +71,8 @@ Written in Svelte 5 compatibility syntax (no runes): `$:` reactive statements, `
 
 ## Tauri details
 - `tauri.conf.json` configures window (1400×900), CSP disabled, FS plugin
-- Rust backend has 16 commands: file I/O (8), assets (2), hadith (2), dictionary (4), pandoc export (1)
-- `src-tauri/db/dicts.sqlite` bundled with 11 Arabic dictionaries (Lisan al-Arab, Al-Waseet, etc.)
+- Rust backend has 17 commands: file I/O (8), assets (3), hadith (2), dictionary (2), spellcheck (1), pandoc export (1)
+- `src-tauri/db/dicts.sqlite` bundled with 10 Arabic dictionaries (Lisan al-Arab, Al-Waseet, etc.)
 - `src-tauri/capabilities/default.json` grants FS read/write/create/remove/rename and path permissions
 - Plugins: `tauri_plugin_dialog`, `tauri_plugin_opener`
 - `src-tauri/.gitignore` ignores `/target/` and `/gen/schemas`

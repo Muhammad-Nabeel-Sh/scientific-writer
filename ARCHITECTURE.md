@@ -12,7 +12,7 @@
 | Syntax hl   | highlight.js                                                       |
 | Search      | fuse.js (fuzzy hadith search) + custom full-text search engine     |
 | Hijri date  | @umalqura/core                                                     |
-| Dictionary  | rusqlite with 11 embedded Arabic lexicons                          |
+| Dictionary  | rusqlite with 10 embedded Arabic lexicons                          |
 | Export      | docx (via Pandoc), LaTeX, Markdown, Typst (via AST-based exporters)|
 
 ---
@@ -53,7 +53,7 @@ scientific-writer/
 │   │   ├── EquationDialog.svelte # LaTeX equation editor & insert
 │   │   ├── EnvironmentDialog.svelte # Academic block environment inserter
 │   │   ├── DiacriticDialog.svelte # Diacritic (tashkeel) character palette
-│   │   ├── DictionaryDialog.svelte # Arabic dictionary lookup (11 lexicons)
+│   │   ├── DictionaryDialog.svelte # Arabic dictionary lookup (10 lexicons)
 │   │   ├── TafqitDialog.svelte  # Number-to-Arabic-words (تفقيط) converter
 │   │   ├── DateDialog.svelte    # Hijri/Gregorian date picker & format inserter
 │   │   ├── KatexGallery.svelte  # KaTeX symbol reference gallery
@@ -281,7 +281,7 @@ Defined in `src-tauri/src/lib.rs`, invoked via `@tauri-apps/api/core` `invoke()`
 | `export_pandoc`           | `(app, workspace, markdown, format) -> Result<Vec<u8>>` | Converts markdown via Pandoc (docx, etc.) |
 | `search_dictionary`       | `(app, query, dict_table?, search_mode?, dict_group?) -> Result<Vec<DictEntry>>` | Search Arabic lexicons (word/root) |
 | `list_dictionaries`       | `() -> Vec<serde_json::Value>`                   | Lists all 10 available dictionary tables   |
-| `debug_dictionary_path`   | `(app) -> Result<String>`                        | Returns dictionary DB path for debugging   |
+| `check_spelling`          | `(app, state, text) -> Result<Vec<SpellError>>`  | Checks Arabic text with Hunspell           |
 
 ### Backend location
 
