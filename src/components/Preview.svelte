@@ -4,12 +4,17 @@
     digitStyle, ligatureSettings,
     fontSettings, kashidaConfig, hierarchy, activeNoteId,
   } from "$lib/stores";
-  import { renderDocument } from "$lib/markdown";
+  import { renderDocument, type DigitStyle } from "$lib/markdown";
+  import type { BibEntry } from "$lib/bibliography";
+  import type { KashidaConfig } from "$lib/stores";
   import { getWorkspaceDir } from "$lib/fs";
   import { convertFileSrc, isTauri } from "@tauri-apps/api/core";
   import { applyKashida, clearKashida } from "$lib/kashida";
   import { wikiLinkResolver } from "$lib/backlinks";
   import { sanitizeHtml } from "$lib/sanitize";
+  import { onDestroy, tick } from "svelte";
+
+  const RENDER_DELAY = 150;
 
   $: content = $noteContent;
   $: entries = $bibEntries;
@@ -19,6 +24,12 @@
   let html = "";
   let prevKashidaEnabled = false;
   let previewStyle = "";
+  let renderTimer: ReturnType<typeof setTimeout> | undefined;
+  let renderSeq = 0;
+
+  // Rebuilt once per hierarchy change, not on every keystroke.
+  let linkResolver = wikiLinkResolver($hierarchy);
+  $: linkResolver = wikiLinkResolver($hierarchy);
 
   $: if (previewEl) $previewRef = previewEl;
 
@@ -28,11 +39,11 @@
   }
   init();
 
-  function resolveAssets(html: string): string {
-    if (!workspaceDir) return html;
+  function resolveAssets(html: string, wsDir: string): string {
+    if (!wsDir) return html;
     return html.replace(
       /src="(assets\/[^"]+)"/g,
-      (_, assetPath: string) => `src="${convertFileSrc(workspaceDir + '/' + assetPath)}"`,
+      (_, assetPath: string) => `src="${convertFileSrc(wsDir + '/' + assetPath)}"`,
     );
   }
 
@@ -53,30 +64,60 @@
 
   $: previewStyle = `font-family: ${$fontSettings.family}, 'Amiri', 'Noto Sans Arabic', 'Readex Pro', serif; font-weight: ${$fontSettings.weight}; font-size: ${$fontSettings.fontSize}px; font-variation-settings: ${fontSettingsCSS()}; font-feature-settings: ${ligatureSettingsCSS() || 'normal'};`;
 
-  $: {
-    const result = renderDocument(content, {
-      bibEntries: entries,
-      digitStyle: $digitStyle,
-      resolveWikiLink: wikiLinkResolver($hierarchy),
+  function scheduleRender(
+    text: string,
+    bib: BibEntry[],
+    digit: DigitStyle,
+    kashida: KashidaConfig,
+    resolver: (name: string) => string | null,
+    wsDir: string,
+  ) {
+    if (renderTimer) clearTimeout(renderTimer);
+    const seq = ++renderSeq;
+    renderTimer = setTimeout(() => {
+      renderTimer = undefined;
+      void renderNow(seq, text, bib, digit, kashida, resolver, wsDir).catch((e) =>
+        console.error("[preview] render failed:", e),
+      );
+    }, RENDER_DELAY);
+  }
+
+  async function renderNow(
+    seq: number,
+    text: string,
+    bib: BibEntry[],
+    digit: DigitStyle,
+    kashida: KashidaConfig,
+    resolver: (name: string) => string | null,
+    wsDir: string,
+  ) {
+    const result = renderDocument(text, {
+      bibEntries: bib,
+      digitStyle: digit,
+      resolveWikiLink: resolver,
     });
-    html = sanitizeHtml(resolveAssets(result.html));
+    html = sanitizeHtml(resolveAssets(result.html, wsDir));
     $citedKeys = result.citations.used;
     $missingCitationKeys = result.citations.missing;
 
-    // Read at top level to ensure Svelte tracks them as dependencies
-    const kashEnabled = $kashidaConfig.enabled;
-    const targetFill = $kashidaConfig.targetFill;
+    // Wait until the new HTML is in the DOM before measuring/applying kashida.
+    await tick();
+    if (seq !== renderSeq || !previewEl) return;
 
-    if (previewEl && kashEnabled) {
-      requestAnimationFrame(() => {
-        clearKashida(previewEl);
-        applyKashida(previewEl, { enabled: true, targetFill });
-      });
-    } else if (previewEl && prevKashidaEnabled && !kashEnabled) {
+    if (kashida.enabled) {
+      clearKashida(previewEl);
+      applyKashida(previewEl, { enabled: true, targetFill: kashida.targetFill });
+    } else if (prevKashidaEnabled) {
       clearKashida(previewEl);
     }
-    prevKashidaEnabled = kashEnabled;
+    prevKashidaEnabled = kashida.enabled;
   }
+
+  $: scheduleRender(content, entries, $digitStyle, $kashidaConfig, linkResolver, workspaceDir);
+
+  onDestroy(() => {
+    if (renderTimer) clearTimeout(renderTimer);
+  });
 
   function handlePreviewClick(e: MouseEvent) {
     const target = e.target as HTMLElement;
