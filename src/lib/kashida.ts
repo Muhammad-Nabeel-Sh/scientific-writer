@@ -107,7 +107,7 @@ function getVisualLines(block: HTMLElement): VisualLine[] {
   return lines;
 }
 
-function countStretchablePositions(word: string): number {
+export function countStretchablePositions(word: string): number {
   let count = 0;
   for (let i = 0; i < word.length - 1; i++) {
     if (STRETCHABLE.has(word[i])) count++;
@@ -115,7 +115,7 @@ function countStretchablePositions(word: string): number {
   return count;
 }
 
-function insertTatweel(text: string, count: number): string {
+export function insertTatweel(text: string, count: number): string {
   let result = '';
   let inserted = 0;
 
