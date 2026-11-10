@@ -102,31 +102,39 @@ export interface OutlineItem {
   charOffset: number;
 }
 
-export function parseOutline(markdown: string): OutlineItem[] {
-  const lines = markdown.split('\n');
-  const items: OutlineItem[] = [];
-  let charOffset = 0;
-  let inFence = false;
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (line.trimStart().startsWith('```')) {
-      inFence = !inFence;
-      charOffset += line.length + 1;
-      continue;
-    }
-    if (!inFence) {
-      const match = line.match(/^(#{1,6})\s+(.+)$/);
-      if (match) {
-        items.push({
-          id: `h-${i}`,
-          level: match[1].length,
-          text: match[2].trim(),
-          lineIndex: i,
-          charOffset,
-        });
-      }
-    }
-    charOffset += line.length + 1;
+function computeLineOffsets(text: string): number[] {
+  const offsets: number[] = [];
+  let offset = 0;
+  for (const line of text.split('\n')) {
+    offsets.push(offset);
+    offset += line.length + 1;
   }
+  return offsets;
+}
+
+/**
+ * Headings from the same token stream the preview uses. This includes headings
+ * inside `:::` containers, blockquotes and list items, and ignores `#` lines
+ * inside fenced code blocks.
+ */
+export function analyzeOutline(text: string): OutlineItem[] {
+  const { tokens } = parse(text);
+  const offsets = computeLineOffsets(text);
+  const items: OutlineItem[] = [];
+
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    if (token.type !== 'heading_open') continue;
+    const lineIndex = token.map?.[0] ?? 0;
+    const inline = tokens[i + 1];
+    items.push({
+      id: `h-${lineIndex}`,
+      level: Number(token.tag.slice(1)) || 1,
+      text: inline?.type === 'inline' ? inline.content.trim() : '',
+      lineIndex,
+      charOffset: offsets[lineIndex] ?? 0,
+    });
+  }
+
   return items;
 }

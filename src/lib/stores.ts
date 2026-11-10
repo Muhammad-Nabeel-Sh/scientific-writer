@@ -1,5 +1,5 @@
 import { writable, derived } from 'svelte/store';
-import { parseOutline, type DigitStyle } from './markdown';
+import { analyzeOutline, type DigitStyle } from './markdown';
 
 export interface TreeNode {
   id: string;
@@ -138,7 +138,7 @@ export const activeNote = derived([hierarchy, activeNoteId], ([$hierarchy, $id])
 export const editorRef = writable<HTMLTextAreaElement | null>(null);
 export const previewRef = writable<HTMLElement | null>(null);
 export const activeHeadingId = writable<string | null>(null);
-export const outlineItems = derived(noteContent, ($c) => parseOutline($c));
+export const outlineItems = derived(noteContent, ($c) => analyzeOutline($c));
 
 export const digitStyle = writable<DigitStyle>('auto');
 
