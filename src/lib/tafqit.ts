@@ -71,7 +71,7 @@ function pluralSuffix(count: number, singular: string, dual: string, plural: str
 }
 
 const groupNames = [
-  { divisor: 1e12, singular: "بليون", dual: "بليونان", plural: "بليونات" },
+  { divisor: 1e12, singular: "تريليون", dual: "تريليونان", plural: "تريليونات" },
   { divisor: 1e9, singular: "مليار", dual: "ملياران", plural: "مليارات" },
   { divisor: 1e6, singular: "مليون", dual: "مليونان", plural: "ملايين" },
   { divisor: 1000, singular: "ألف", dual: "ألفان", plural: "آلاف" },
@@ -115,15 +115,17 @@ export function convertToArabicWords(value: number | string): string {
   const num = typeof value === "string" ? parseFloat(value) : value;
   if (!isFinite(num)) return "";
 
-  const raw = typeof value === "string" ? value : num.toString();
-  const dotIdx = raw.indexOf(".");
+  const raw = (typeof value === "string" ? value : num.toString()).trim();
+  const negative = raw.startsWith("-");
+  const unsigned = raw.replace(/^[+-]/, "");
+  const dotIdx = unsigned.indexOf(".");
 
   if (dotIdx === -1) {
     return convertInteger(Math.round(num));
   }
 
-  const intPart = raw.substring(0, dotIdx);
-  const fracPart = raw.substring(dotIdx + 1);
+  const intPart = unsigned.substring(0, dotIdx);
+  const fracPart = unsigned.substring(dotIdx + 1);
 
   const intWords = intPart === "0" && fracPart.length > 0 ? "" : convertInteger(parseInt(intPart, 10));
 
@@ -149,8 +151,8 @@ export function convertToArabicWords(value: number | string): string {
     }
   }
 
-  if (intWords) {
-    return intWords + " فاصلة " + fracWords.join(" ");
-  }
-  return "فاصلة " + fracWords.join(" ");
+  const body = intWords
+    ? intWords + " فاصلة " + fracWords.join(" ")
+    : "فاصلة " + fracWords.join(" ");
+  return negative ? "سالب " + body : body;
 }

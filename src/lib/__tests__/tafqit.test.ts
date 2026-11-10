@@ -57,11 +57,16 @@ describe('convertToArabicWords', () => {
     expect(convertToArabicWords(Number.POSITIVE_INFINITY)).toBe('');
   });
 
-  // Found during P0.4: the sign of a negative fraction between -1 and 0 is lost.
-  it.todo('convertToArabicWords(-0.5) should be "سالب فاصلة خمسة", not "صفر فاصلة خمسة"');
+  it('keeps the sign of negative fractions', () => {
+    expect(convertToArabicWords(-0.5)).toBe('سالب فاصلة خمسة');
+    expect(convertToArabicWords('-3.14')).toBe('سالب ثلاثة فاصلة أربعة عشر');
+    expect(convertToArabicWords('-0.05')).toBe('سالب فاصلة صفر خمسة');
+  });
 
-  // Found during P0.4: 10^12 is labelled "بليون" though Arabic uses "تريليون"
-  // (and "بليون"/"مليار" for 10^9). Currently unreachable from TafqitDialog,
-  // which caps input at 12 digits (999,999,999,999).
-  it.todo('convertToArabicWords(1e12) should use the Arabic name for a trillion');
+  it('names large groups correctly (مليار / تريليون)', () => {
+    expect(convertToArabicWords(1e9)).toBe('مليار');
+    expect(convertToArabicWords(1e12)).toBe('تريليون');
+    expect(convertToArabicWords(2e12)).toBe('تريليونان');
+    expect(convertToArabicWords(3e12)).toBe('ثلاثة تريليونات');
+  });
 });
