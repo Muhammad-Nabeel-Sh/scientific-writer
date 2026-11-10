@@ -8,11 +8,6 @@ const STRETCHABLE = new Set([
   'م', 'ن', 'ه', 'ي', 'پ', 'چ', 'ژ', 'ڥ', 'ڤ',
 ]);
 
-// Letters that NEVER accept kashida after them (isolated/final-only forms)
-const NON_STRETCHABLE = new Set([
-  'ا', 'د', 'ذ', 'ر', 'ز', 'و', 'ة', 'ى', 'آ', 'أ', 'إ', 'ؤ', 'ئ',
-]);
-
 export interface KashidaConfig {
   enabled: boolean;
   targetFill: number; // 0-1, e.g. 0.92 = apply kashida only if line fills ≥92% of container
@@ -66,11 +61,9 @@ function kashidaJustifyBlock(block: HTMLElement, targetFill: number): void {
     if (fillRatio >= targetFill && fillRatio < 0.98) {
       const gap = blockWidth - line.width;
       const kashidasToAdd = Math.max(1, Math.round(gap / 8));
-      const stretchPositions = countStretchablePositions(line.text);
-      if (stretchPositions === 0) continue;
+      if (countStretchablePositions(line.text) === 0) continue;
 
-      const perPosition = Math.max(1, Math.floor(kashidasToAdd / stretchPositions));
-      line.node.textContent = insertTatweel(line.text, perPosition);
+      line.node.textContent = insertTatweel(line.text, kashidasToAdd);
     }
   }
 }
@@ -107,29 +100,53 @@ function getVisualLines(block: HTMLElement): VisualLine[] {
   return lines;
 }
 
+const ARABIC_LETTER = /[\u0621-\u064A\u066E-\u06D3\u06FA-\u06FC]/;
+
+function isJoinableLetter(ch: string): boolean {
+  return ch !== 'ء' && ARABIC_LETTER.test(ch);
+}
+
+function isLamAlef(text: string, i: number): boolean {
+  return text[i] === 'ل' && 'اأإآ'.includes(text[i + 1]);
+}
+
+/** A kashida may be inserted after `text[i]` only if it joins the next letter. */
+function isKashidaPosition(text: string, i: number): boolean {
+  if (i < 0 || i >= text.length - 1) return false;
+  if (!STRETCHABLE.has(text[i])) return false;
+  if (!isJoinableLetter(text[i + 1])) return false;
+  if (isLamAlef(text, i)) return false;
+  return true;
+}
+
 export function countStretchablePositions(word: string): number {
   let count = 0;
   for (let i = 0; i < word.length - 1; i++) {
-    if (STRETCHABLE.has(word[i])) count++;
+    if (isKashidaPosition(word, i)) count++;
   }
   return count;
 }
 
 export function insertTatweel(text: string, count: number): string {
-  let result = '';
-  let inserted = 0;
+  const positions: number[] = [];
+  for (let i = 0; i < text.length - 1; i++) {
+    if (isKashidaPosition(text, i)) positions.push(i);
+  }
+  if (positions.length === 0 || count <= 0) return text;
 
-  // Process right-to-left (Arabic script direction)
-  for (let i = text.length - 1; i >= 0 && inserted < count; i--) {
-    result = text[i] + result;
-    // Insert tatweel after stretchable chars (except at end of word)
-    if (i > 0 && STRETCHABLE.has(text[i]) && !NON_STRETCHABLE.has(text[i - 1])) {
-      const repetitions = i > text.length - 3 ? 1 : Math.min(2, count - inserted);
-      for (let r = 0; r < repetitions && inserted < count; r++) {
-        result = TATWEEL + result;
-        inserted++;
-      }
-    }
+  // Distribute evenly, but never stretch a single join by more than two tatweels.
+  const perPosition = Math.floor(count / positions.length);
+  const remainder = count % positions.length;
+  const allocation = new Map<number, number>();
+  for (let j = 0; j < positions.length; j++) {
+    allocation.set(positions[j], Math.min(2, perPosition + (j < remainder ? 1 : 0)));
+  }
+
+  let result = '';
+  for (let i = 0; i < text.length; i++) {
+    result += text[i];
+    const repetitions = allocation.get(i) ?? 0;
+    if (repetitions > 0) result += TATWEEL.repeat(repetitions);
   }
 
   return result;
