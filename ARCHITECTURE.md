@@ -100,11 +100,12 @@ scientific-writer/
 │
 ├── src-tauri/                # Rust backend
 │   ├── Cargo.toml
-│   ├── tauri.conf.json       # Window config, CSP disabled, asset protocol
-│   ├── capabilities/default.json  # Core permissions
+│   ├── tauri.conf.json       # Window config, strict CSP, runtime-scoped asset protocol
+│   ├── capabilities/default.json  # Core window + opener permissions only
 │   ├── src/
 │   │   ├── main.rs           # Entry point, calls lib::run()
-│   │   └── lib.rs            # Tauri commands: file I/O, hadith, copy to assets
+│   │   ├── workspace.rs      # Trusted-root registry, path resolution, atomic writes
+│   │   └── lib.rs            # Tauri commands: workspace, file I/O, hadith, assets
 │   └── icons/
 │
 └── docs/
@@ -262,36 +263,68 @@ BacklinksPanel.svelte  ← renders clickable list
 ## Rust Commands
 
 Defined in `src-tauri/src/lib.rs`, invoked via `@tauri-apps/api/core` `invoke()`.
+Every path coming from the webview is resolved by
+`WorkspaceRegistry::resolve()` (see `src-tauri/src/workspace.rs`); commands
+never touch a raw path directly. Commands marked *async* run their I/O/CPU work
+in `tauri::async_runtime::spawn_blocking`, so the window stays responsive.
 
 | Command                   | Signature                                        | Purpose                                    |
 |---------------------------|--------------------------------------------------|--------------------------------------------|
-| `get_workspace_dir`       | `(app) -> Result<String>`                        | Creates & returns `{appData}/scientific-writer/workspace/` |
-| `read_text_file`          | `(path: String) -> Result<String>`               | Reads file content as string               |
-| `read_binary_file`        | `(path: String) -> Result<Vec<u8>>`              | Reads file content as binary bytes         |
-| `write_text_file`         | `(path: String, content: String) -> Result<()>`  | Writes string to file (creates parents)    |
-| `create_dir`              | `(path: String, recursive: bool) -> Result<()>`  | Creates directory                          |
-| `remove_file`             | `(path: String) -> Result<()>`                   | Deletes file                               |
-| `rename_file`             | `(old_path, new_path: String) -> Result<()>`     | Renames file                               |
-| `file_exists`             | `(path: String) -> bool`                         | Checks if path exists                      |
-| `copy_file`               | `(src, dest: String) -> Result<()>`              | Copies file                                |
-| `copy_file_to_assets`     | `(workspace, file_name: String, data: Vec<u8>) -> Result<String>` | Saves binary to `assets/`, returns relative path |
-| `list_assets`             | `(workspace: String) -> Result<Vec<String>>`     | Lists files in `assets/` directory         |
+| `get_workspace_dir`       | `(app, ws) -> Result<String>`                    | Creates/trusts & returns `{appData}/scientific-writer/workspace/` |
+| `pick_workspace`          | *async* `(app, ws) -> Result<Option<String>>`    | Native folder picker; picked folder becomes trusted |
+| `open_workspace`          | *async* `(app, ws, path) -> Result<String>`      | Opens a trusted folder; asks natively before trusting a new one |
+| `list_files`              | `(ws, dir) -> Result<Vec<String>>`               | Lists plain files directly inside `dir` (e.g. `.backups`) |
+| `read_text_file`          | `(ws, path) -> Result<String>`                   | Reads file content as string               |
+| `read_binary_file`        | *async* `(app, path) -> Result<Vec<u8>>`         | Reads file content as binary bytes         |
+| `write_text_file`         | `(ws, path, content) -> Result<()>`              | Atomic write (temp file + rename)          |
+| `create_dir`              | `(ws, path, recursive) -> Result<()>`            | Creates directory                          |
+| `remove_file`             | `(ws, path) -> Result<()>`                       | Deletes file                               |
+| `rename_file`             | `(ws, old_path, new_path) -> Result<()>`         | Renames file                               |
+| `file_exists`             | `(ws, path) -> bool`                             | Checks if path exists                      |
+| `copy_file`               | `(ws, src, dest) -> Result<()>`                  | Copies file atomically                     |
+| `copy_file_to_assets`     | `(ws, workspace, file_name, data) -> Result<String>` | Validates basename, writes to `assets/`, returns relative path |
+| `list_assets`             | `(ws, workspace) -> Result<Vec<String>>`         | Lists files in `assets/` directory         |
 | `get_hadith_books`        | `() -> Vec<&'static str>`                        | Returns 9 book keys                        |
-| `read_hadith_book`        | `(book: String) -> Result<String>`               | Reads book JSON from `docs/hadith-json-.../` |
-| `export_pandoc`           | `(app, workspace, markdown, format) -> Result<Vec<u8>>` | Converts markdown via Pandoc (docx, etc.) |
-| `search_dictionary`       | `(app, query, dict_table?, search_mode?, dict_group?) -> Result<Vec<DictEntry>>` | Search Arabic lexicons (word/root) |
+| `read_hadith_book`        | *async* `(app, book) -> Result<String>`          | Reads bundled `hadith/<book>.json`         |
+| `export_pandoc`           | *async* `(app, workspace, markdown, format) -> Result<Vec<u8>>` | Converts markdown via Pandoc; only `docx`, `odt`, `epub`, `html` |
+| `search_dictionary`       | *async* `(app, query, dict_table?, search_mode?, dict_group?) -> Result<Vec<DictEntry>>` | Searches Arabic lexicons (word/root) |
 | `list_dictionaries`       | `() -> Vec<serde_json::Value>`                   | Lists all 10 available dictionary tables   |
-| `check_spelling`          | `(app, state, text) -> Result<Vec<SpellError>>`  | Checks Arabic text with Hunspell           |
+| `check_spelling`          | *async* `(app, text) -> Result<Vec<SpellError>>` | Checks Arabic text with Hunspell           |
 
-### Backend location
+### Resource locations
 
-`project_root()` is derived from `CARGO_MANIFEST_DIR` parent (i.e. `scientific-writer/`). Hadith files are loaded from `docs/hadith-json-1.2.0/db/by_book/the_9_books/{book}.json`.
+`resource_path()` resolves `<resource_dir>/<bundled>` in production and falls
+back to the repository path in debug builds only:
+
+- Ḥadīth: `hadith/<book>.json` (bundled) → `docs/hadith-json-1.2.0/db/by_book/the_9_books/<book>.json` (dev)
+- Dictionaries: `db/dicts.sqlite` (bundled) → `src-tauri/db/dicts.sqlite` (dev)
+- Hunspell: `hunspell/` (bundled) → `src-tauri/resources/hunspell/` (dev)
+
+### Workspace trust model
+
+- The default app-data workspace is always trusted.
+- `pick_workspace` and `open_workspace` are the only ways to add another root;
+  both show Rust-side native UI that page content cannot forge.
+- Trusted roots persist in `{appConfigDir}/trusted-workspaces.json`.
+- `resolve()` rejects relative paths, `..` components and paths that escape a
+  trusted root after following symlinks/junctions.
+- The asset protocol starts with an empty scope; each trusted root is added at
+  runtime via `asset_protocol_scope().allow_directory()`.
 
 ---
 
 ## Markdown Pipeline
 
 All logic in `src/lib/markdown.ts`.
+
+### Rendering security
+
+Every HTML string injected with `{@html}` (preview, dialogs, search snippets,
+print iframe) passes through `sanitizeHtml()` in `src/lib/sanitize.ts`.
+DOMPurify keeps KaTeX/MathML/SVG markup and the app's classes/`data-*`, while
+stripping scripts, iframes, event handlers and `javascript:` URLs. External
+`http(s)`/`mailto` links are routed to the system browser by
+`src/lib/external-links.ts`.
 
 ### renderMarkdown(text, bibEntries?, digitStyle?) → HTML string
 
@@ -664,7 +697,10 @@ getLastCitationResult()          ← read module-level usedKeys/missingKeys
 ## Storage Model
 
 ### Workspace location
-`{appDataDir}/scientific-writer/workspace/` (resolved by `tauri::path::app_data_dir()`)
+Default: `{appDataDir}/scientific-writer/workspace/` (resolved by
+`tauri::path::app_data_dir()`). Other folders can be opened through the native
+folder picker or the recent-workspaces list; the backend asks for confirmation
+before trusting a new root.
 
 ### File layout
 ```
@@ -672,8 +708,9 @@ workspace/
 ├── hierarchy.json      # Note tree as TreeNode[] JSON
 ├── references.bib      # BibTeX reference database (optional)
 ├── {note-id}.md        # Individual note files
+├── .backups/           # Auto-recovery snapshots (git-ignored)
 └── assets/
-    └── {image-files}   # Uploaded images (copied via copy_file_to_assets)
+    └── {image-files}   # Uploaded images (validated basename, atomic write)
 ```
 
 ### hierarchy.json format
@@ -693,7 +730,8 @@ workspace/
 ```
 
 ### Initialization flow
-1. `initWorkspace()` calls `get_workspace_dir()` (creates dir on first call)
+1. `initWorkspace()` asks the backend to open the saved path (`open_workspace`)
+   or falls back to `get_workspace_dir()`; both return a trusted root.
 2. Tries to read `hierarchy.json`
 3. If not found: creates default hierarchy (2 folders, 5 notes with sample content including wiki link examples)
 4. Writes default files via `write_text_file`
@@ -704,10 +742,16 @@ workspace/
 8. `buildBacklinksIndex()` scans all notes → `backlinksIndex` store
 
 ### Save flow
-- Auto-save: 500ms debounce on `noteContent` change → `writeNote(id, content)`
-- Manual: Ctrl+S → same `writeNote` call
-- Hierarchy changes (rename, delete, add, drag) → `saveHierarchy(nodes)` writes `hierarchy.json`
-- References editor (`__references__` virtual note) → saves to `references.bib` via `writeBibliography()`
+- Edits go to `noteSaver.schedule(id, content)` — a per-note debounced queue
+  (500 ms) that writes the latest content for the correct note.
+- `flush()` runs before note/workspace switches and on window close
+  (`onCloseRequested` in `App.svelte`), so the last keystrokes reach disk.
+- Save failures are surfaced as a toast; the note stays dirty for retry.
+- `write_text_file` and asset writes are atomic (temp file + rename).
+- Hierarchy changes (rename, delete, add, drag) → `saveHierarchy(nodes)` writes
+  `hierarchy.json`
+- References editor (`__references__` virtual note) → saves to `references.bib`
+  via the same queue (`REFERENCES_ID`).
 
 ### References editor
 - A virtual note with ID `__references__` displays the raw `references.bib` file in the editor
