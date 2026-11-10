@@ -276,12 +276,12 @@ This is the enabler for the math work. Do it behind the P0.5 golden tests.
 | P2.1 ✅ | [CL] | **markdown-it token stream → publishing AST.** Write `src/lib/publishing/from-markdown-it.ts` that converts markdown-it tokens (with all app plugins) into the existing `ast.ts` types. Exporters consume this; retire the hand parser in `document.ts` (keep only metadata/front-matter helpers). | Every exporter produces output from the same parse the preview uses; `document.ts` parser deleted |
 | P2.2 ✅ | [CL] | **Replace regex pre/post-processing with markdown-it plugins/rules:** hard breaks via `breaks: true` (drop blank-line injection), digit conversion as a core rule on `text` tokens only (never inside `math_*`, `code_*`, links), table captions as a block rule, equation labels/numbering inside the math rule (numbers attached to tokens, not matched by order), `dir` attributes via renderer rules, figure/table label language from document language. | Golden tests updated intentionally (diff reviewed); A.6.1 repro now leaves math digits alone |
 | P2.3 ✅ | [CL] | **Render context instead of module state:** `renderMarkdown(text, opts) → { html, equations, figures, tables, citations, warnings }`. Remove `getLastCitationResult`/`getLastEquationResult` globals; make `blocks.ts` counters per-render. Remove the `console.warn` monkey-patch; KaTeX warnings go to `warnings[]`. | No module-level mutable render state remains (grep) |
-| P2.4 ◐ | [OC] | Update callers (`Preview.svelte`, `EquationDialog.svelte`, `Stats.svelte`, `Outline`, etc.) to the new return type once P2.3 lands. | `npm run check` passes |
-| P2.5 | [OC] | Debounce preview rendering (150 ms idle) and run kashida only after render settles. | Typing in a 50-page fixture shows no input lag (manual) |
+| P2.4 ✅ | [OC] | Update callers (`Preview.svelte`, `EquationDialog.svelte`, `Stats.svelte`, `Outline`, etc.) to the new return type once P2.3 lands. | `npm run check` passes |
+| P2.5 ✅ | [OC] | Debounce preview rendering (150 ms idle) and run kashida only after render settles. | Typing in a 50-page fixture shows no input lag (manual) |
 
 #### Phase 2 status (2026-11-11)
 
-Claude's tasks (P2.1–P2.3) are done. **Most of P2.4 was needed to keep `npm run check` passing**, so it's done too (Preview and the PDF export). opencode has **P2.4b, P2.5 and P2.6–P2.8** left.
+Claude's tasks (P2.1–P2.3) are done. **Most of P2.4 was needed to keep `npm run check` passing**, so it was done in the same commit (Preview and the PDF export). opencode finished **P2.4b, P2.5 and P2.6–P2.8**.
 
 **What changed (read this before touching the render pipeline):**
 - **One parser:** `src/lib/md/parser.ts` builds the single markdown-it instance. The preview, the PDF print view, the exporters and analysis queries all use it. Every app syntax is a plugin:
@@ -304,15 +304,17 @@ Claude's tasks (P2.1–P2.3) are done. **Most of P2.4 was needed to keep `npm ru
 - Wiki links and `[ref:…]` were replaced inside code spans. Digits were converted inside raw HTML attributes. `<pre>` got a duplicate `dir`.
 - The `classical-book` template nested `:::page` around same-length `:::` fences, so the page closed early and left a stray `:::`. It now uses `::::page … ::::`.
 
-**Verified:** `npm run check` is clean and 158 tests pass. New tests: `render-pipeline.test.ts`, `document-model.test.ts`, and `templates-render.test.ts`, which renders every template and fails on a stray fence. Golden snapshots were updated after reviewing each hunk. The build passes. In the running frontend (Vite, outside Tauri), a test note checked through the DOM rendered correctly: labelled equation and its reference, theorem alias numbering, `matn chapter`, poetry, table caption, and sanitised `onerror`.
+- **opencode tasks:** P2.4b makes `EquationDialog` use `analyzeMarkdown`, cite labelled equations by label, and show per-equation KaTeX diagnostics. P2.5 debounces preview rendering by 150 ms, applies kashida after `tick()` (post-DOM), and builds `wikiLinkResolver` once per hierarchy change. P2.6 derives `outlineItems` from `heading_open` tokens (`analyzeOutline`), so containers/lists/fences behave like the preview. P2.7 switched the classical fixtures to `::::page`. P2.8 deleted the unused `renderHashiyahRefs` helper.
+
+**Verified:** `npm run check` is clean and 164 tests pass. New tests: `render-pipeline.test.ts`, `document-model.test.ts`, `templates-render.test.ts` and `outline.test.ts`, which renders every template and fails on a stray fence. Golden snapshots were updated after reviewing each hunk. The build passes. In the running frontend (Vite, outside Tauri), a test note checked through the DOM rendered correctly: labelled equation and its reference, theorem alias numbering, `matn chapter`, poetry, table caption, and sanitised `onerror`.
 
 | ID | Owner | Task | Done when |
 |---|---|---|---|
-| P2.4b | [OC] | `EquationDialog.svelte`: use `analyzeMarkdown($noteContent).equations` and offer `[ref:eq:<label>]` when an equation has a label (fall back to the number). Show `warnings` of kind `math` next to each listed equation. | Inserting a ref to a labelled equation uses the label |
-| P2.5 | [OC] | (unchanged) Debounce preview rendering (~150 ms idle) and run kashida only after the render settles. Build the `wikiLinkResolver` once per `$hierarchy` change, not on every keystroke. | No input lag in a 50-page fixture |
-| P2.6 | [OC] | `stores.ts` `outlineItems`: derive from tokens (`heading_open.map[0]`) via a small `analyzeOutline()` in `markdown.ts`. That way headings inside `:::` containers, lists and `~~~` fences behave like the preview. Keep the `OutlineItem` shape. | Outline ignores `#` lines inside `~~~` fences; tests |
-| P2.7 | [OC] | Tests fixtures `tests/fixtures/classical-*.md` still use the old nested `:::page`. Switch them to `::::page` like the template, then update the snapshots. | Snapshots contain no `<p dir="auto">:::</p>` |
-| P2.8 | [OC] | Delete the now-unused `renderHashiyahRefs` in `markdown-classical.ts` (nothing calls it), or wire it into `structure.ts` as a core rule with a test. Your choice; don't leave dead code. | — |
+| P2.4b ✅ | [OC] | `EquationDialog.svelte`: use `analyzeMarkdown($noteContent).equations` and offer `[ref:eq:<label>]` when an equation has a label (fall back to the number). Show `warnings` of kind `math` next to each listed equation. | Inserting a ref to a labelled equation uses the label |
+| P2.5 ✅ | [OC] | (unchanged) Debounce preview rendering (~150 ms idle) and run kashida only after the render settles. Build the `wikiLinkResolver` once per `$hierarchy` change, not on every keystroke. | No input lag in a 50-page fixture |
+| P2.6 ✅ | [OC] | `stores.ts` `outlineItems`: derive from tokens (`heading_open.map[0]`) via a small `analyzeOutline()` in `markdown.ts`. That way headings inside `:::` containers, lists and `~~~` fences behave like the preview. Keep the `OutlineItem` shape. | Outline ignores `#` lines inside `~~~` fences; tests |
+| P2.7 ✅ | [OC] | Tests fixtures `tests/fixtures/classical-*.md` still use the old nested `:::page`. Switch them to `::::page` like the template, then update the snapshots. | Snapshots contain no `<p dir="auto">:::</p>` |
+| P2.8 ✅ | [OC] | Delete the now-unused `renderHashiyahRefs` in `markdown-classical.ts` (nothing calls it), or wire it into `structure.ts` as a core rule with a test. Your choice; don't leave dead code. | — |
 
 ### Phase 3 — Math symbol system (core by Claude, content by opencode)
 
