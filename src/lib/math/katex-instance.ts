@@ -115,7 +115,53 @@ export function renderMath(tex: string, opts: MathRenderOptions): string {
       return katex.renderToString(tex, { ...base, macros: { ...macros }, throwOnError: false });
     }
   });
-  return rtl ? toRtlMathml(html, opts.digits ?? 'arabic-indic') : html;
+  const fixed = unwrapTokenText(html);
+  return rtl ? toRtlMathml(fixed, opts.digits ?? 'arabic-indic') : isolateArabicRuns(fixed);
+}
+
+/**
+ * Glyph symbols are \mathord{\htmlClass{…}{\text{X}}}, and KaTeX writes their
+ * MathML as <mi><mtext>X</mtext></mi>. A token element must contain only
+ * text (MathML Core), and Chromium draws nothing for it, so the symbol
+ * vanished in right-to-left (MathML-only) equations. Unwrap to <mi>X</mi>.
+ * `mathvariant="normal"` keeps a single-character <mi> upright.
+ */
+export function unwrapTokenText(html: string): string {
+  return html.replace(
+    /<(mi|mo|mn)((?:\s[^>]*)?)><mtext>([^<]*)<\/mtext><\/\1>/g,
+    (_m, tag: string, attrs: string, text: string) =>
+      tag === 'mi' && !/mathvariant=/.test(attrs)
+        ? `<mi${attrs} mathvariant="normal">${text}</mi>`
+        : `<${tag}${attrs}>${text}</${tag}>`,
+  );
+}
+
+const ARABIC_CLASS =
+  '\\u0600-\\u06FF\\u0750-\\u077F\\u08A0-\\u08FF\\uFB50-\\uFDFF\\uFE70-\\uFEFF\\u{1EE00}-\\u{1EEFF}';
+/** A run of Arabic, possibly with spaces/ZWJ/ZWNJ between Arabic characters. */
+const ARABIC_RUN_RE = new RegExp(`[${ARABIC_CLASS}](?:[${ARABIC_CLASS}\\u0020\\u00A0\\u200C\\u200D]*[${ARABIC_CLASS}])?`, 'gu');
+const KATEX_HTML_MARK = '<span class="katex-html"';
+
+/**
+ * Left-to-right formulas: keep atoms in TeX order (M14).
+ *
+ * KaTeX emits each atom as a plain span. The browser's bidi algorithm then
+ * reorders runs like "س → 0" (an Arabic letter, a neutral operator, a
+ * number), so `\nihaya_{س \to 0}` displayed as "0→ س". CSS forces the
+ * HTML layer's atoms into DOM order (`bidi-override`, see app.css). This
+ * wraps every Arabic run in an RTL isolate, so the letters of a word keep
+ * their natural order and joining inside it. Only the visible HTML layer is
+ * touched; the MathML layer (and its TeX annotation) is left alone.
+ */
+export function isolateArabicRuns(html: string): string {
+  const at = html.indexOf(KATEX_HTML_MARK);
+  if (at === -1) return html;
+  const visible = html.slice(at).replace(/>([^<]+)</g, (m, text: string) => {
+    if (!ARABIC_RUN_RE.test(text)) return m;
+    ARABIC_RUN_RE.lastIndex = 0;
+    return '>' + text.replace(ARABIC_RUN_RE, (run) => `<span class="sw-ar" dir="rtl">${run}</span>`) + '<';
+  });
+  return html.slice(0, at) + visible;
 }
 
 /**

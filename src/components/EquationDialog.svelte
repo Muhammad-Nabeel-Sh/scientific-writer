@@ -3,8 +3,9 @@
   import { noteContent } from '$lib/stores';
   import { sanitizeHtml } from '$lib/sanitize';
   import { analyzeMarkdown } from '$lib/markdown';
-  import { renderMath } from '$lib/math';
+  import { renderMath, buildEquationSnippet, labelError, type EquationDir } from '$lib/math';
   import KatexGallery from './KatexGallery.svelte';
+  import ArabicSymbolGallery from './ArabicSymbolGallery.svelte';
 
   export let insertAtCursor: (text: string) => void;
 
@@ -24,6 +25,26 @@
   let documentEquations: DocEquation[] = [];
   let inputRef: HTMLTextAreaElement;
 
+  // Options
+  const OPTIONS_KEY = 'sw_equation_options';
+  let dir: EquationDir = 'ltr';
+  let display = true;
+  let label = '';
+  let galleryTab: 'arabic' | 'latex' = 'arabic';
+  try {
+    const saved = JSON.parse(localStorage.getItem(OPTIONS_KEY) || '{}');
+    if (saved.dir === 'rtl' || saved.dir === 'ltr') dir = saved.dir;
+    if (typeof saved.display === 'boolean') display = saved.display;
+    if (saved.galleryTab === 'arabic' || saved.galleryTab === 'latex') galleryTab = saved.galleryTab;
+  } catch { /* defaults */ }
+  $: try {
+    localStorage.setItem(OPTIONS_KEY, JSON.stringify({ dir, display, galleryTab }));
+  } catch { /* storage unavailable */ }
+
+  // Right-to-left math is display-only (there is no inline RTL syntax), and so are labels.
+  $: effectiveDir = display ? dir : 'ltr';
+  $: labelProblem = display ? labelError(label) : null;
+
   // Equations and their math diagnostics come from the same parse the preview
   // uses. Warnings are produced by rendering each equation with the shared
   // KaTeX call (analyzeMarkdown itself does not do KaTeX work).
@@ -42,7 +63,8 @@
   $: if (equationInput.trim()) {
     let failed = false;
     previewHtml = renderMath(equationInput.trim(), {
-      display: true,
+      display,
+      dir: effectiveDir,
       onIssue: (i) => { if (i.code !== 'strict') failed = true; },
     });
     previewError = failed;
@@ -61,14 +83,26 @@
   }
 
   function addEquation() {
-    if (!equationInput.trim()) return;
-    insertAtCursor(`\n$$\n${equationInput.trim()}\n$$\n`);
+    if (!equationInput.trim() || labelProblem) return;
+    insertAtCursor(buildEquationSnippet({ tex: equationInput, display, dir: effectiveDir, label }));
     dispatch('close');
   }
 
+  /** Insert at the input's caret (not just at the end). */
   function onGalleryInsert(latex: string) {
-    equationInput += latex;
-    inputRef?.focus();
+    const ta = inputRef;
+    if (!ta) {
+      equationInput += latex;
+      return;
+    }
+    const start = ta.selectionStart ?? equationInput.length;
+    const end = ta.selectionEnd ?? equationInput.length;
+    equationInput = equationInput.slice(0, start) + latex + equationInput.slice(end);
+    const caret = start + latex.length;
+    requestAnimationFrame(() => {
+      ta.focus();
+      ta.setSelectionRange(caret, caret);
+    });
   }
 
   function onKeydown(e: KeyboardEvent) {
@@ -92,6 +126,39 @@
       <!-- Left: Input + Preview + Gallery -->
       <div class="eq-left">
         <div class="eq-input-section">
+          <div class="eq-options" dir="rtl">
+            <div class="opt-group" role="radiogroup" aria-label="اتجاه المعادلة">
+              <span class="opt-label">الاتجاه</span>
+              <button class="seg" class:active={effectiveDir === 'ltr'} disabled={!display}
+                role="radio" aria-checked={effectiveDir === 'ltr'}
+                title="الترميز الغربي: من اليسار إلى اليمين"
+                on:click={() => (dir = 'ltr')}>يسار ← يمين</button>
+              <button class="seg" class:active={effectiveDir === 'rtl'} disabled={!display}
+                role="radio" aria-checked={effectiveDir === 'rtl'}
+                title="الترميز العربي: من اليمين إلى اليسار (تجريبي) — يُدرج $$[rtl]"
+                on:click={() => (dir = 'rtl')}>يمين ← يسار</button>
+            </div>
+            <div class="opt-group" role="radiogroup" aria-label="نمط الإدراج">
+              <span class="opt-label">النمط</span>
+              <button class="seg" class:active={display} role="radio" aria-checked={display}
+                title="معادلة مستقلة مرقّمة: $$ … $$"
+                on:click={() => (display = true)}>مستقلة</button>
+              <button class="seg" class:active={!display} role="radio" aria-checked={!display}
+                title="ضمن السطر: $ … $"
+                on:click={() => (display = false)}>ضمن السطر</button>
+            </div>
+            <label class="opt-group opt-tag" class:invalid={!!labelProblem}>
+              <span class="opt-label">الوسم</span>
+              <input
+                type="text"
+                bind:value={label}
+                disabled={!display}
+                placeholder="اختياري: مثل سرعة"
+                title={labelProblem ?? 'يتيح الإشارة إلى المعادلة بـ [ref:eq:الوسم]'}
+                dir="auto"
+              />
+            </label>
+          </div>
           <textarea
             bind:this={inputRef}
             bind:value={equationInput}
@@ -106,17 +173,27 @@
           <div class="eq-actions">
             <button
               class="btn-add"
-              disabled={!equationInput.trim() || previewError}
+              disabled={!equationInput.trim() || previewError || !!labelProblem}
               on:click={addEquation}
             >إضافة</button>
             <span class="eq-hint">Ctrl+Enter للإضافة</span>
+            {#if labelProblem}<span class="eq-label-error">{labelProblem}</span>{/if}
           </div>
         </div>
 
         <!-- Gallery -->
         <div class="eq-gallery">
-          <h4 class="gallery-title">مكتبة الوظائف</h4>
-          <KatexGallery onInsert={onGalleryInsert} />
+          <div class="gallery-tabs" role="tablist" dir="rtl">
+            <button role="tab" class="tab" class:active={galleryTab === 'arabic'} aria-selected={galleryTab === 'arabic'}
+              on:click={() => (galleryTab = 'arabic')}>رموز عربية</button>
+            <button role="tab" class="tab" class:active={galleryTab === 'latex'} aria-selected={galleryTab === 'latex'}
+              on:click={() => (galleryTab = 'latex')}>رموز LaTeX</button>
+          </div>
+          {#if galleryTab === 'arabic'}
+            <ArabicSymbolGallery onInsert={onGalleryInsert} dir={effectiveDir} />
+          {:else}
+            <KatexGallery onInsert={onGalleryInsert} />
+          {/if}
         </div>
       </div>
 
@@ -295,11 +372,87 @@
     overflow-y: auto;
     min-height: 0;
   }
-  .gallery-title {
-    font-size: 0.85rem;
+  .gallery-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    background: var(--bg-panel);
+    z-index: 1;
+  }
+  .tab {
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
     color: var(--fg-muted);
-    margin: 0 0 6px;
+    padding: 4px 10px;
+    font-family: inherit;
+    font-size: 0.85rem;
     font-weight: 600;
+    cursor: pointer;
+  }
+  .tab.active {
+    color: var(--fg);
+    border-bottom-color: var(--accent);
+  }
+
+  /* Options */
+  .eq-options {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 14px;
+  }
+  .opt-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .opt-label {
+    font-size: 0.75rem;
+    color: var(--fg-muted);
+    margin-inline-end: 2px;
+  }
+  .seg {
+    background: #2a2a2a;
+    border: 1px solid var(--border);
+    color: var(--fg-muted);
+    padding: 3px 9px;
+    font-family: inherit;
+    font-size: 0.75rem;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  .seg.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .seg:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  .opt-tag input {
+    width: 110px;
+    background: #2a2a2a;
+    border: 1px solid var(--border);
+    color: var(--fg);
+    padding: 3px 8px;
+    border-radius: 5px;
+    font-family: inherit;
+    font-size: 0.75rem;
+  }
+  .opt-tag input:disabled {
+    opacity: 0.4;
+  }
+  .opt-tag.invalid input {
+    border-color: #e37400;
+  }
+  .eq-label-error {
+    font-size: 0.72rem;
+    color: #f0c674;
   }
 
   /* Right section */

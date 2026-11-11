@@ -402,23 +402,62 @@ html, body { height: 100%; overflow: hidden; direction: rtl; background: var(--b
 .katex { font-size: 1.1em; }
 .katex-display { margin: 1em 0; text-align: center; }
 
+/* ── Katib Math: the app's Arabic math font ──
+   XITS Math (MATH table, 'rtlm', U+1EE00 Arabic math alphabet) + Amiri's
+   Arabic script, built by fonts-src/katib-math/build.py. OFL 1.1.
+   See docs/math-fonts.md. */
+@font-face {
+  font-family: 'Katib Math';
+  src: url('/fonts/katib-math/KatibMath-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Arabic inside ANY KaTeX formula (\text{…}, Arabic variables, function names)
+   is drawn with Katib Math: extra faces of KaTeX's own families that only
+   cover Arabic. KaTeX's fonts have no Arabic glyphs, so these faces take over
+   exactly for those characters. The italic face stops fake-italic Arabic in
+   math mode. */
+@font-face { font-family: 'KaTeX_Main'; src: url('/fonts/katib-math/KatibMath-Regular.woff2') format('woff2'); font-style: normal; font-display: swap;
+  unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF, U+1EE00-1EEFF; }
+@font-face { font-family: 'KaTeX_Main'; src: url('/fonts/katib-math/KatibMath-Regular.woff2') format('woff2'); font-style: italic; font-display: swap;
+  unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF, U+1EE00-1EEFF; }
+@font-face { font-family: 'KaTeX_Math'; src: url('/fonts/katib-math/KatibMath-Regular.woff2') format('woff2'); font-style: italic; font-display: swap;
+  unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF, U+1EE00-1EEFF; }
+@font-face { font-family: 'KaTeX_Math'; src: url('/fonts/katib-math/KatibMath-Regular.woff2') format('woff2'); font-style: normal; font-display: swap;
+  unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF, U+1EE00-1EEFF; }
+
+/* Left-to-right formulas keep their atoms in TeX order (M14). Without this, the
+   bidi algorithm reorders "س → 0" into "0 → س". Every element is overridden,
+   because KaTeX nests inline-blocks (scripts, fractions) and each starts a new
+   bidi context. Arabic runs are wrapped in .sw-ar by renderMath(), which
+   isolates them so words keep their natural order and joining. */
+.katex .katex-html,
+.katex .katex-html * {
+  unicode-bidi: bidi-override;
+  direction: ltr;
+}
+.katex .katex-html .sw-ar {
+  unicode-bidi: isolate;
+  direction: rtl;
+}
+
 /* ── Math symbols (src/lib/math) ──
    Glyph symbols render as \htmlClass{sw-sym sw-font-<font>}{\text{…}}.
-   KaTeX sets its own font on the inner spans, so target descendants too.
-   Font choice: docs/math-fonts.md. */
+   KaTeX sets its own font on the inner spans, so target descendants too. */
 .katex .sw-font-arabicmath,
 .katex .sw-font-arabicmath * {
-  font-family: 'Amiri', 'Noto Sans Arabic', serif !important;
+  font-family: 'Katib Math', 'Amiri', serif !important;
   font-style: normal !important;
 }
 .katex .sw-sym { white-space: nowrap; }
 
-/* Experimental right-to-left math (MathML only, M7). The system math font
-   comes FIRST: it has the MATH table (radicals, stretchy operators) and the
-   'rtlm' mirrored forms (Cambria Math on Windows). It has no Arabic letters,
-   so those fall through to Amiri. Amiri first would drop radicals entirely. */
+/* Experimental right-to-left math (MathML only, M7). Katib Math has the MATH
+   table, the 'rtlm' mirrored forms and Arabic, so RTL math looks the same on
+   every OS; the system math font is only a fallback. */
 .katex.sw-math-rtl { direction: rtl; }
-.katex.sw-math-rtl math { font-family: math, 'Cambria Math', 'Amiri', serif; }
+.katex.sw-math-rtl math { font-family: 'Katib Math', math, serif; }
 .preview .katex-display > .katex.sw-math-rtl { text-align: center; }
 
 /* ⚠ marker on formulas with problems (M10) */

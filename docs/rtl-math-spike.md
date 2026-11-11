@@ -21,8 +21,9 @@ Date: 2026-11-11 · Verdict: **GO for the preview (behind a flag); export still 
     document's digit style is `western` (Maghrib).
   - A thin space follows the function-application operator, so that `جا س`
     does not run together as `جاس`.
-- **Fonts.** `math, 'Cambria Math', 'Amiri', serif`; see
-  [math-fonts.md](math-fonts.md).
+- **Fonts.** `'Katib Math', math, serif`. Katib Math is our OFL build of XITS
+  Math + Amiri's Arabic; see [math-fonts.md](math-fonts.md). The spike itself
+  first used `math, 'Cambria Math', 'Amiri'`.
 
 ## Evidence (measured in the running app, Chromium)
 
@@ -51,9 +52,10 @@ Test coverage: `src/lib/__tests__/math-syntax.test.ts`, section "M7 RTL prototyp
 
 ## Known gaps
 
-1. **OS-dependent operator font.** Mirroring comes from the system math font
-   (Cambria Math on Windows). Untested on macOS/Linux. This is fixed by
-   bundling a math font with `rtlm` (XITS Math); see math-fonts.md, follow-up.
+1. ~~**OS-dependent operator font.**~~ **Resolved:** the bundled **Katib Math**
+   (XITS Math + Amiri Arabic, OFL) now comes first in the RTL stack. Mirrored ∑
+   and √ were verified with it (`docs/images/math/katib-math.png`). See
+   math-fonts.md.
 2. **No visual comparison against a textbook yet.** The acceptance criterion in
    §B.4 (about 20 formulas from an Arabic school book) still needs that
    reference material. Someone with the book should do it.

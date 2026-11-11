@@ -1,66 +1,97 @@
 # Math fonts — decision note (M6)
 
-Date: 2026-11-11 · Status: **decided for now**; one follow-up once the network is available.
+Date: 2026-11-11 · Status: **decided — Katib Math**, our own OFL font built on XITS Math.
 
 ## Question
 
-Which font draws math symbols that KaTeX's own fonts lack? The main case is the
-**Arabic Mathematical Alphabetic Symbols** block (U+1EE00–U+1EEFF, 143 assigned
-characters), used by glyph symbols (`kind: 'glyph'`, class `sw-font-arabicmath`).
-A second question is which font lays out **right-to-left math** (see
-[rtl-math-spike.md](rtl-math-spike.md)).
+Which font draws the math symbols KaTeX's own fonts lack, and lays out
+right-to-left math? The main cases:
+- **Arabic Mathematical Alphabetic Symbols** (U+1EE00–U+1EEFF, 143 characters),
+  used by glyph symbols (`kind: 'glyph'`, class `sw-font-arabicmath`)
+- **Arabic words inside formulas** (`\text{السرعة}`, function names جا، نها …)
+- **Right-to-left math** (see [rtl-math-spike.md](rtl-math-spike.md)): needs a
+  `MATH` table and `rtlm` mirrored forms
 
 ## Method
 
-The font binaries were inspected directly. A small cmap/GSUB reader parses TTF,
-OTF, TTC and WOFF2 (`cmap-scan.cjs`, kept outside the repo; it is easy to
-recreate from this description). For each face it reports:
-- how many U+1EE00–1EEFF codepoints it covers
-- whether it covers Arabic letters (ا ل), Latin math alphanumerics (U+1D400) and ∑
+A small cmap/GSUB reader inspected the font files themselves, then the result was
+checked in the running app. Per face it reports:
+- coverage of U+1EE00–1EEFF, Arabic letters and ∑
 - whether it has an OpenType `MATH` table
-- whether it has the `rtlm` (right-to-left mirrored forms) GSUB feature
+- whether it has the `rtlm` feature
 
-It scanned the bundled fonts (`static/fonts`), KaTeX's fonts and every system
-font on the development machine (Windows 11, 649 faces).
-
-The network was down during the evaluation, so candidates that would need a
-download (XITS Math, STIX Two Math, Noto Sans Math) could **not** be measured.
+Scanned: the bundled fonts, KaTeX's fonts, every system font on the development
+machine (Windows 11, 649 faces), and the fonts added to `Fonts/`.
 
 ## Results
 
-| Font | U+1EE00 block | Arabic | `MATH` table | `rtlm` | Notes |
-|---|---|---|---|---|---|
-| **Amiri** (bundled, `arabic` subsets, regular + bold) | **143 / 143** | yes | no | no | already OFL-bundled; our `@font-face` `unicode-range` already routes U+1EE00… to these files |
-| Amiri (latin/other subsets) | 0 | – | no | no | |
-| Noto Sans Arabic (bundled) | 0 | yes | no | one subset | |
-| KaTeX_* (bundled by KaTeX) | 0 | no | no | no | why KaTeX cannot draw these glyphs itself |
-| Cambria Math (Windows system, `cambria.ttc#1`) | 0 | no | **yes** | **yes** | the browser's `math` generic family on Windows |
-| UULA Sans (user-installed) | 16 / 143 | yes | no | no | not usable |
+| Font | U+1EE00 block | Arabic | `MATH` | `rtlm` | Licence | Notes |
+|---|---|---|---|---|---|---|
+| **XITS Math 1.302** | **143 / 143** | no | **yes** | **yes** (152 glyphs, with size variants) | OFL | the only font with all three math properties |
+| Amiri Regular | 143 / 143 | yes | no | yes (text) | OFL | best Arabic text shaping on hand |
+| Noto Naskh Arabic | 0 | yes | no | yes | OFL | |
+| Cambria Math (Windows) | 0 | no | yes | yes | proprietary, system only | not shippable; Windows only |
+| KaTeX_* | 0 | no | no | no | MIT | why KaTeX cannot draw Arabic itself |
+| Mazeri Arabic Math Symbol (1, 2) | 0 (glyphs in Private Use Area F020–F0FF) | – | no | no | **none stated** | rich Arabic notation, but symbol-encoded and with no licence, so it can't be shipped or modified (see below) |
+| MO Bayannur | – | – | – | – | trial EULA | excluded |
 
-Browser check: `document.fonts.check('16px Amiri', '\u{1EE00}')` is `true` in
-the running app, and a glyph symbol renders with Amiri
-(`docs/images/math/glyph-and-marker.png`).
+## Decision: Katib Math
 
-## Decision
+**Katib Math = XITS Math + Amiri's Arabic script**, built reproducibly by
+[`fonts-src/katib-math/build.py`](../fonts-src/katib-math/build.py) under the OFL.
+See the font's [README](../fonts-src/katib-math/README.md) and
+[FONTLOG](../fonts-src/katib-math/FONTLOG.txt).
 
-1. **Glyph symbols use Amiri.** CSS (`src/app.css`):
-   `.katex .sw-font-arabicmath, .katex .sw-font-arabicmath * { font-family: 'Amiri', 'Noto Sans Arabic', serif }`.
-   It covers the whole block, is already bundled and needs no extra download.
-   M5 should generate glyph symbols with `font: 'arabicmath'`.
-2. **RTL MathML** uses `font-family: math, 'Cambria Math', 'Amiri', serif`.
-   The system math font comes **first**, for radicals, stretchy operators and
-   `rtlm`. Arabic letters fall through to Amiri. With Amiri first, the radical
-   in `\sqrt{}` is not drawn at all (`rtl-amiri-first.jpg`).
+The build was verified on the font file:
+- the `MATH` table is byte-for-byte XITS's, and XITS's glyph order is an exact prefix, so every math glyph reference still points to the same glyph
+- all 42 Arabic letters, the marks, tatweel and all 143 math-alphabet characters are present
+- `rtlm` is registered under DFLT/latn/math, with mirrored size variants and radical assemblies
+- the Arabic shaping features `init`/`medi`/`fina`/`rlig`/`ccmp` sit under `arab`
+
+Where it is used (`src/app.css`, section "Katib Math"):
+1. **Arabic inside any KaTeX formula.** Extra `@font-face` rules for `KaTeX_Main`
+   and `KaTeX_Math` (normal and italic) point to Katib Math with an Arabic-only
+   `unicode-range`. KaTeX's fonts have no Arabic, so exactly those characters use
+   it, and the italic face prevents fake-italic Arabic.
+2. **Glyph symbols:** `.sw-font-arabicmath` → `'Katib Math', 'Amiri'`.
+3. **Right-to-left MathML:** `font-family: 'Katib Math', math, serif`. Operators,
+   radicals and Arabic all come from one font, so it **no longer depends on the
+   OS math font**.
+4. **Export (Phase 4):** `fonts-src/katib-math/dist/KatibMath-Regular.otf` with
+   `unicode-math`.
+
+Verified in the running app (Chromium), `docs/images/math/katib-math.png`:
+- mirrored ∑ and √ in `$$[rtl]`, plus Arabic-Indic digits
+- Arabic text and function names in LTR formulas drawn with Katib Math
+- `document.fonts.check('30px "Katib Math"', 'سجا√∑')` is `true`
+
+Earlier screenshots (Amiri-only and Cambria stacks) are kept in
+`docs/images/math/` for comparison.
+
+## Why not Mazeri
+
+Mazeri's two symbol fonts have a valuable Arabic notation set: ready-made
+جا جتا ظا ظتا قا قتا, نها and لو with a limit stroke, a mirrored ∑, and Arabic
+math letters. But:
+- **There is no licence or copyright statement.** Shipping the font, or a modified
+  copy of it, needs the copyright holder's permission. "Minor improvements" would
+  still be a derived work.
+- **It is symbol-encoded** (Private Use Area), so its characters have no meaning
+  outside the font. Copy-paste, search, LaTeX and Word export would carry
+  meaningless codepoints.
+
+Its *repertoire* (which symbols Arabic math needs) is still useful as a checklist
+for what Katib Math should cover. Lists of notation aren't anyone's property, as
+long as every glyph is drawn fresh or taken from an OFL source. If Mazeri's author
+can be found and agrees to an OFL release, its shapes could be merged in later.
 
 ## Gaps / follow-up
 
-- **No font on hand has both a `MATH` table and the Arabic math alphabet.** RTL
-  math therefore depends on the OS math font: Cambria Math on Windows; macOS
-  and Linux are unverified. **Follow-up:** when the network is available, run
-  the same scan on **XITS Math** (aliftype/xits), STIX Two Math and Noto Sans
-  Math. If XITS Math has `MATH` + `rtlm` + U+1EE00, bundle it (OFL) and put it
-  first in the RTL stack, so RTL math looks the same on every OS.
-- Amiri is a text font, so Arabic-letter glyphs use text metrics (no italic
-  correction or math kerning). That is acceptable for single letters.
-- Glyph symbols in **LTR** KaTeX output depend only on Amiri, which is bundled,
-  so they are cross-platform.
+- **Bold:** only Regular is built. XITS Math Bold lacks the Arabic math alphabet.
+  A bold Katib Math would need Amiri Bold plus a decision on the alphabet.
+- **Function-name forms:** نها/لو with a long limit stroke are not separate
+  glyphs. Write them with tatweel (`نهــا`) or as `\operatorname*{…}`; a dedicated
+  design is possible later.
+- **Size:** the WOFF2 is 438 KiB, because Amiri's full Arabic shaping set is
+  5924 glyphs. Acceptable for a desktop app. Subsetting Amiri's ornamental
+  alternates (`ss0x`) would shrink it.

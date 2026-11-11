@@ -29,3 +29,11 @@ src-tauri/target/
 
 # Workspace auto-save backups
 .backups/
+
+# font build venv
+fonts-src/.venv/
+fonts-src/**/build/
+
+# Raw font collection (contains fonts we may not redistribute: Mazeri, trial fonts).
+# Shipped fonts live in static/fonts and fonts-src/*/upstream with their licences.
+/Fonts/

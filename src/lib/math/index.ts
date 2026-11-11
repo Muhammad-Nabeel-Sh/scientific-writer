@@ -22,6 +22,15 @@ export function ensureBuiltinSymbols(): void {
 
 ensureBuiltinSymbols();
 
-export { renderMath, isKatexCommand, type MathIssue, type MathRenderOptions, type MathDir } from './katex-instance';
+export {
+  renderMath,
+  isKatexCommand,
+  isolateArabicRuns,
+  type MathIssue,
+  type MathRenderOptions,
+  type MathDir,
+} from './katex-instance';
 export * from './registry';
 export * from './user-symbols';
+export * from './arabic-gallery';
+export * from './equation-snippet';

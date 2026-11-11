@@ -1,0 +1,43 @@
+FONTLOG for Katib Math
+======================
+
+This file records how Katib Math was made, as recommended by the SIL Open Font
+License for Modified Versions.
+
+Basic font information
+----------------------
+Katib Math is an OpenType math font for Arabic scientific writing: right-to-left
+mathematics, the Arabic Mathematical Alphabetic Symbols, and Arabic words inside
+formulas. It is released under the SIL Open Font License 1.1 (OFL.txt).
+
+Sources
+-------
+- XITS Math 1.302, https://github.com/aliftype/xits (OFL 1.1).
+  Reserved Font Names of XITS's sources: "STIX Fonts", "TM Math" (not used).
+- Amiri (Regular), https://github.com/aliftype/amiri (OFL 1.1).
+
+ChangeLog
+---------
+2026-11-11  Version 1.000
+  * Base: XITS Math Regular 1.302, all glyphs, the MATH table, and the
+    GSUB/GPOS features (including 'rtlm', 'ssty', 'dtls'), unchanged.
+  * Added the Arabic script of Amiri Regular: U+0600–06FF, U+0750–077F,
+    U+08A0–08FF, U+FB50–FDFF, U+FE70–FEFF, U+200C–200F and U+25CC, with all
+    glyphs reachable through its Arabic shaping (5924 glyphs). TrueType
+    outlines were converted exactly to CFF (cubic) outlines. TrueType hinting
+    was dropped.
+  * Amiri's Arabic GSUB/GPOS lookups were merged under the 'arab' script.
+    Amiri lookups that only touch glyphs outside the Arabic subset (Latin
+    ligatures, bracket mirroring) were dropped by the subsetter; XITS's own
+    'rtlm' covers brackets and operators.
+  * Where both fonts map a codepoint (e.g. Arabic-Indic digits U+0660–0669),
+    the XITS glyph is kept, for math metrics.
+  * OS/2: winAscent/winDescent widened to Amiri's values so tall Arabic marks
+    are not clipped. Arabic code page and Unicode-range bits set. fsType = 0.
+  * Renamed to "Katib Math" (PostScript: KatibMath-Regular). Copyright and
+    licence name records updated.
+
+Acknowledgements
+----------------
+The STIX Fonts project and its contributors; Khaled Hosny (XITS, Amiri); the
+Amiri Project Authors.
