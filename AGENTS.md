@@ -19,6 +19,8 @@ scientific-writer/
 │   ├── app.css           # Global styles (RTL, dark theme, KaTeX)
 │   ├── components/       # 21 Svelte components (Editor, panels, dialogs)
 │   ├── lib/              # Stores, FS wrapper, markdown pipeline (md/), search, templates…
+│   │   ├── math/         # KaTeX instance, symbol registry, catalogs, galleries
+│   │   └── publishing/   # AST + LaTeX/Typst/DOCX/HTML exporters
 │   └── routes/           # +page.svelte, +layout.svelte, +layout.ts
 ├── src-tauri/            # Rust Tauri backend
 │   ├── src/lib.rs        # 20 commands: workspace, file I/O, assets, hadith, dictionary, spellcheck, pandoc
@@ -56,6 +58,18 @@ Written in Svelte 5 compatibility syntax (no runes): `$:` reactive statements, `
 - Full RTL layout (`direction: rtl` on `<body>`), dark theme (`--bg: #121212`)
 - Arabic UI labels throughout (e.g., "ملاحظة جديدة.md", "إعادة تسمية")
 - CSS custom properties in `src/app.css`
+
+## Math symbols
+- **Import math only from `$lib/math`** (`src/lib/math/index.ts`): it registers the
+  built-in symbol sets. Never import `katex` outside
+  `src/lib/math/katex-instance.ts`; every render goes through `renderMath`.
+- **Custom symbols go through the registry**: use the `MathSymbol` shape and
+  `validateSymbol()`; the symbol editor saves them to
+  `{workspace}/math-symbols.json` via `src/lib/math-workspace.ts` (loaded into the
+  registry on workspace init). Do not put KaTeX built-ins in the registry —
+  `katex-catalog.ts` is the plain-data catalog for those.
+- **`$$[rtl] … $$` is experimental RTL math** (MathML + the bundled Katib Math
+  font). See `docs/rtl-math-spike.md`; `$$ … $$` remains LTR.
 
 ## Security conventions
 - **All file access is workspace-scoped.** Webview-supplied paths go through
