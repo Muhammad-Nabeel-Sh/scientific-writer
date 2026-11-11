@@ -5,6 +5,7 @@
 import type { MathSymbol } from '../registry';
 import { ARABIC_ALPHABET } from './arabic-alphabet';
 import { ARABIC_FUNCTIONS } from './arabic-functions';
+import { ARABIC_NOTATION } from './arabic-notation';
 import { ARABIC_SIGNS, MIRRORED_OPERATORS, NUMBER_SETS } from './arabic-operators';
 
 export const BUILTIN_SYMBOL_SETS: MathSymbol[][] = [
@@ -13,7 +14,9 @@ export const BUILTIN_SYMBOL_SETS: MathSymbol[][] = [
   MIRRORED_OPERATORS,
   ARABIC_SIGNS,
   NUMBER_SETS,
+  ARABIC_NOTATION,
 ];
 
 export { arabicLetterVariant, type ArabicLetterVariant } from './arabic-alphabet';
+export { ARABIC_NOTATION } from './arabic-notation';
 export { ARABIC_SIGNS, MIRRORED_OPERATORS, NUMBER_SETS } from './arabic-operators';

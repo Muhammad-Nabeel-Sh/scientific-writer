@@ -7,6 +7,7 @@ import { normalizeArabic } from '../search';
 import { getSymbols, getSymbolSource, type MathSymbol } from './registry';
 import {
   arabicLetterVariant,
+  ARABIC_NOTATION,
   ARABIC_SIGNS,
   MIRRORED_OPERATORS,
   NUMBER_SETS,
@@ -28,12 +29,20 @@ const PREVIEWS: Record<string, string> = {
   arCubeRoot: '\\arCubeRoot س',
   arFourthRoot: '\\arFourthRoot س',
   arPercent: '50\\arPercent',
+  arGcd: '\\arGcd(أ, ب)',
+  arLcm: '\\arLcm(أ, ب)',
+  arDet: '\\arDet أ',
+  arMod: 'أ \\arMod ن',
 };
 
 /** What gets inserted for symbols with arguments: the user fills the braces. */
 const INSERTS: Record<string, string> = {
   rsqrt: '\\rsqrt{}',
   rroot: '\\rroot{3}{}',
+  arGcd: '\\arGcd(أ, ب)',
+  arLcm: '\\arLcm(أ, ب)',
+  arDet: '\\arDet أ',
+  arMod: 'أ \\arMod ن',
 };
 
 export interface GalleryItem {
@@ -70,6 +79,11 @@ export const ARABIC_TEMPLATES: GalleryItem[] = [
   t('tpl-cases', 'دالة متعددة القواعد', 'د(س) = \\begin{cases} س & س \\geq 0 \\\\ -س & س < 0 \\end{cases}', ['قواعد', 'cases', 'متعددة']),
   t('tpl-matrix', 'مصفوفة', '\\begin{pmatrix} أ & ب \\\\ ج & د \\end{pmatrix}', ['مصفوفة', 'matrix']),
   t('tpl-set', 'مجموعة', 'ص = \\{ س : س \\in \\mathbb{R} ، س > 0 \\}', ['مجموعة', 'set']),
+  t('tpl-set-builder', 'بناء المجموعة', '\\{ س \\in \\mathbb{R} ، س > 0 \\}', ['مجموعة', 'set-builder', 'بناء']),
+  t('tpl-set-builder-interval', 'بناء مجموعة بفترة', '\\{ س \\in \\mathbb{R} ، س \\in (أ ؛ ب) \\}', ['مجموعة', 'set-builder', 'فترة']),
+  t('tpl-interval-open', 'فترة مفتوحة', '(أ ؛ ب)', ['فترة', 'interval', 'مفتوحة']),
+  t('tpl-interval-closed', 'فترة مغلقة', '[أ ؛ ب]', ['فترة', 'interval', 'مغلقة']),
+  t('tpl-interval-half', 'فترة نصف مفتوحة', '(أ ؛ ب]', ['فترة', 'interval']),
 ];
 
 function t(id: string, label: string, tex: string, keywords: string[]): GalleryItem {
@@ -116,6 +130,7 @@ export function arabicGalleryGroups(symbols: MathSymbol[] = getSymbols()): Galle
     { id: 'mirrored', label: 'رموز معكوسة (∑ ∫ √ …)', set: MIRRORED_OPERATORS, open: true },
     { id: 'number-sets', label: 'مجموعات الأعداد', set: NUMBER_SETS },
     { id: 'signs', label: 'علامات عربية (؆ ؇ ؈ ٪ ؉)', set: ARABIC_SIGNS },
+    { id: 'notation', label: 'ترميز عربي إضافي (ق.م.أ، محدد، مضروب)', set: ARABIC_NOTATION, open: true },
   ];
   const inNamed = new Set<string>();
   for (const { id, label, set, open } of named) {

@@ -388,13 +388,18 @@ Claude's tasks are done: **M1, M2, M3, M10** completely, plus **M6 and M7 as dec
   - **Number sets** `\arNaturals` ط, `\arIntegers` ص, `\arRationals` ن, `\arReals` ح (double-struck) and `\arComplex` ك (bold, because Unicode has no double-struck Kaf).
 
   The gallery has groups for each. Verified in the app: ∑ → Ƹ with upright limits, the radical sign on the right with readable content, number sets in order. Tests are in `arabic-symbols.test.ts`. LaTeX bodies use `\reflectbox` (graphicx) for E3. | — |
-| M17 | [OC] | **Possible further Arabic notation; confirm with the author first, because conventions differ between countries:**
+| M17 ✅ | [OC] | **Possible further Arabic notation; confirm with the author first, because conventions differ between countries:**
   - GCD/LCM abbreviations (ق.م.أ / م.م.أ) as `\operatorname` macros
   - a determinant/matrix-name convention (محدد)
   - modulo (باقي القسمة)
   - an Arabic factorial convention (the `!` before the number in RTL texts; check with the curriculum)
   - Arabic interval notation with `؛` as separator
   - templates for set-builder notation with `،`
+
+  Implemented (2026-11-11, all confirmed by the author): `\arGcd`, `\arLcm`, `\arDet`,
+  `\arMod` and `\arFact` in `symbols/arabic-notation.ts`; open/closed/half-open
+  interval and set-builder templates in `arabic-gallery.ts`. Tests:
+  `arabic-notation.test.ts`.
 
   Each one is a `fn()`/macro entry plus a test. | Author picks the conventions; each new symbol renders with no issues |
 
