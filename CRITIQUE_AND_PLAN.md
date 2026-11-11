@@ -407,12 +407,22 @@ Claude's tasks are done: **M1, M2, M3, M10** completely, plus **M6 and M7 as dec
 
 | ID | Owner | Task | Done when |
 |---|---|---|---|
-| E1 | [OC] | **Fix `escapeLatex`**: `\`→`\textbackslash{}`, `~`→`\textasciitilde{}`, `^`→`\textasciicircum{}`; others as now. Unit tests. | Tests pass |
-| E2 | [OC] | **LaTeX preamble**: add `amsmath, amssymb, mathtools`, `unicode-math` (XeLaTeX branch) with **`\setmathfont{KatibMath-Regular.otf}`** (ship `fonts-src/katib-math/dist/KatibMath-Regular.otf` next to the exported `.tex`, or point `Path=` at it), configurable Arabic text font with cross-platform default (Amiri), `numerals` from the app's digit-style setting; emit `\label{eq:x}` and `\eqref{eq:x}` for refs. | Exported `Examples` project compiles with `xelatex` (document the command) |
+| E1 ✅ | [OC] | **Fix `escapeLatex`**: `\`→`\textbackslash{}`, `~`→`\textasciitilde{}`, `^`→`\textasciicircum{}`; others as now. Unit tests. | Tests pass |
+| E2 ✅ | [OC] | **LaTeX preamble**: add `amsmath, amssymb, mathtools`, `unicode-math` (XeLaTeX branch) with **`\setmathfont{KatibMath-Regular.otf}`** (ship `fonts-src/katib-math/dist/KatibMath-Regular.otf` next to the exported `.tex`, or point `Path=` at it), configurable Arabic text font with cross-platform default (Amiri), `numerals` from the app's digit-style setting; emit `\label{eq:x}` and `\eqref{eq:x}` for refs. | Exported `Examples` project compiles with `xelatex` (document the command) |
 | E3 | [CL] | **Registry → LaTeX** (`to-latex.ts`): collect only symbols used in the document, emit `\usepackage`s and `\newcommand`s into the preamble. Language switching for LTR blocks inside RTL docs (`\begin{english}`/`\textenglish`). | A doc using M4/M5 symbols compiles |
 | E4 | [CL] | **Typst math**: use the `mitex` Typst package to render LaTeX math (emit `#import "@preview/mitex:…": *` and `#mitex(`…`)`/`#mi(`…`)`), registry macros passed as mitex definitions; fix the invalid numbered-block syntax. | Exported `.typ` compiles with `typst compile` |
-| E5 | [OC] | **DOCX via Pandoc**: pass `-f markdown+latex_macros+tex_math_dollars`, `-M lang=ar`, `-M dir=rtl` (when RTL), a bundled `reference.docx` with Arabic styles (Amiri, RTL paragraphs), and prepend the registry `\newcommand` header from `to-pandoc.ts`. Convert app-specific syntax to Pandoc syntax first (from the AST, P2.1, not from raw markdown). | Word opens the file with RTL paragraphs and editable equations |
-| E6 | [OC] | Cross-platform Pandoc lookup (`pandoc` / `pandoc.exe`), clear Arabic error when missing. | — |
+| E5 ✅ | [OC] | **DOCX via Pandoc**: pass `-f markdown+latex_macros+tex_math_dollars`, `-M lang=ar`, `-M dir=rtl` (when RTL), a bundled `reference.docx` with Arabic styles (Amiri, RTL paragraphs), and prepend the registry `\newcommand` header from `to-pandoc.ts`. Convert app-specific syntax to Pandoc syntax first (from the AST, P2.1, not from raw markdown). | Word opens the file with RTL paragraphs and editable equations |
+| E6 ✅ | [OC] | Cross-platform Pandoc lookup (`pandoc` / `pandoc.exe`), clear Arabic error when missing. | — |
+
+#### Phase 4 status (2026-11-12)
+
+opencode's **E1, E2, E5 and E6 are done**; E3/E4 (Claude) remain.
+
+- **E1:** `escapeLatex` is a single-pass map (`\textbackslash{}`, `\textasciitilde{}`, `\textasciicircum{}`; the rest `\{ \} \& \% \$ \# \_`). Tests in `latex-export.test.ts`.
+- **E2:** `buildLatexPreamble()` adds `amsmath`, `amssymb`, `mathtools`; for RTL it adds `fontspec` + `unicode-math` + `polyglossia`, `\setmainfont`/`\newfontfamily` for the configured Arabic font (default Amiri) and `\setmathfont[Path=./]{KatibMath-Regular.otf}`. `numerals` comes from `meta.digitStyle` (`eastern`→mashriq, `western`→maghrib, `auto`→document direction). Math blocks emit `\label{eq:…}` (explicit label or number) and refs emit `\eqref{eq:…}`. `HierarchyTree.exportAs` passes `digitStyle` and the typography font into the model. Compile command documented in `docs/math-fonts.md`. **XeLaTeX is not installed on this machine**, so the compile itself was not run.
+- **E5:** `publishing/pandoc-markdown.ts` renders the AST (not raw markdown) to Pandoc Markdown; `math/to-pandoc.ts` emits the used symbols' `\newcommand` header and pre-expands macros inside math (Pandoc's `latex_macros` does not expand display math). The backend passes `-f markdown+latex_macros+tex_math_dollars`, `-M lang=…`, `-M dir=rtl` for RTL, `--reference-doc`, and `--citeproc --bibliography=references.bib` when present. `src-tauri/resources/reference.docx` is a Pandoc default reference patched to Amiri, RTL runs and RTL paragraphs, and is bundled via `tauri.conf.json`.
+  Verified with Pandoc 3.10: the generated DOCX has OMML equations, `<w:bidi/>` paragraphs, `<w:rtl/>` runs and Amiri styles. Rust test `docx_export_runs_pandoc_when_available` skips when Pandoc is absent.
+- **E6:** `find_pandoc()` checks `pandoc.exe`/`pandoc` next to the executable and in the resource dir, then PATH; a missing binary returns an Arabic error with the installation URL. Rust tests cover both candidate names and the error.
 
 ### Phase 5 — Arabic-language fixes
 
