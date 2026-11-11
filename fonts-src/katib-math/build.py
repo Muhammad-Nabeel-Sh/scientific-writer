@@ -79,11 +79,25 @@ def arabic_codepoints(font: TTFont) -> list[int]:
     return sorted(c for c in cmap if any(lo <= c <= hi for lo, hi in ARABIC_RANGES))
 
 
+def shaping_features(font: TTFont) -> list[str]:
+    """GSUB/GPOS features that actually shape Arabic text.
+
+    Amiri's stylistic sets (ss01–ss08) are ornamental alternates that the app
+    never enables; dropping them removes their glyphs from the subset (M15).
+    """
+    tags: set[str] = set()
+    for table_tag in ("GSUB", "GPOS"):
+        if table_tag in font:
+            tags.update(fr.FeatureTag for fr in font[table_tag].table.FeatureList.FeatureRecord)
+    return sorted(t for t in tags if not (len(t) == 4 and t.startswith("ss") and t[2:].isdigit()))
+
+
 def subset_amiri(path: Path) -> TTFont:
     font = TTFont(path)
     unicodes = arabic_codepoints(font)
     opts = SubsetOptions()
-    opts.layout_features = ["*"]  # keep every shaping feature
+    opts.layout_features = shaping_features(font)
+    log(f"Amiri layout features: {', '.join(opts.layout_features)}")
     opts.layout_scripts = ["arab", "DFLT"]
     opts.name_IDs = ["*"]
     opts.notdef_outline = True
@@ -93,6 +107,10 @@ def subset_amiri(path: Path) -> TTFont:
     sub = Subsetter(opts)
     sub.populate(unicodes=unicodes)
     sub.subset(font)
+    remaining = {fr.FeatureTag for fr in font["GSUB"].table.FeatureList.FeatureRecord}
+    ornamental = {t for t in remaining if len(t) == 4 and t.startswith("ss") and t[2:].isdigit()}
+    if ornamental:
+        raise RuntimeError(f"Amiri ornamental features survived the subset: {sorted(ornamental)}")
     log(f"Amiri Arabic subset: {len(unicodes)} codepoints, {len(font.getGlyphOrder())} glyphs")
     return font
 

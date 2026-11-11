@@ -92,6 +92,7 @@ can be found and agrees to an OFL release, its shapes could be merged in later.
 - **Function-name forms:** نها/لو with a long limit stroke are not separate
   glyphs. Write them with tatweel (`نهــا`) or as `\operatorname*{…}`; a dedicated
   design is possible later.
-- **Size:** the WOFF2 is 438 KiB, because Amiri's full Arabic shaping set is
-  5924 glyphs. Acceptable for a desktop app. Subsetting Amiri's ornamental
-  alternates (`ss0x`) would shrink it.
+- **Size:** the WOFF2 is 425 KiB (the Amiri Arabic subset is 5278 glyphs).
+  Amiri's ornamental `ss01`–`ss08` alternates are dropped at build time (M15);
+  the Arabic shaping features are kept, and `fonts-src/katib-math/verify.py`
+  checks coverage plus live shaping. Acceptable for a desktop app.

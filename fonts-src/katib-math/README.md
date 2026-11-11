@@ -34,6 +34,17 @@ licences) and writes:
 - `dist/KatibMath-Regular.woff2`: the committed web font
 - `static/fonts/katib-math/KatibMath-Regular.woff2` + `OFL.txt`: what the app loads
 
+The Amiri subset drops its ornamental stylistic sets (`ss01`–`ss08`), which the
+app never enables; XITS Math's math stylistic sets are kept. This keeps the
+WOFF2 under 430 KiB.
+
+To check coverage and live Arabic shaping (optional, uses HarfBuzz):
+
+```bash
+fonts-src/.venv/Scripts/python -m pip install -r fonts-src/katib-math/requirements-dev.txt
+fonts-src/.venv/Scripts/python fonts-src/katib-math/verify.py
+```
+
 The build is deterministic for given inputs. Re-run it after changing `build.py`
 or updating `upstream/`.
 

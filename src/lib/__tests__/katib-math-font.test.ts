@@ -8,6 +8,8 @@ describe('Katib Math font is shipped with its licence', () => {
   it('web font is a WOFF2 file and the licence sits next to it', () => {
     const woff2 = readFileSync(ROOT + 'static/fonts/katib-math/KatibMath-Regular.woff2');
     expect(woff2.subarray(0, 4).toString('latin1')).toBe('wOF2');
+    // M15: dropping Amiri's ornamental ss01–ss08 alternates keeps it under 430 KiB.
+    expect(woff2.length).toBeLessThan(430 * 1024);
     const ofl = readFileSync(ROOT + 'static/fonts/katib-math/OFL.txt', 'utf8');
     expect(ofl).toContain('SIL OPEN FONT LICENSE');
     expect(ofl).toContain('Amiri Project Authors');
