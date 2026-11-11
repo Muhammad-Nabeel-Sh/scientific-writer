@@ -254,21 +254,33 @@ fn copy_file(ws: Ws, src: String, dest: String) -> Result<(), String> {
     write_atomic(&dest, &data)
 }
 
+fn pandoc_binary_names() -> &'static [&'static str] {
+    if cfg!(windows) {
+        &["pandoc.exe", "pandoc"]
+    } else {
+        &["pandoc", "pandoc.exe"]
+    }
+}
+
 fn find_pandoc(app: &tauri::AppHandle) -> String {
-    // Look for a bundled pandoc next to the app executable first,
-    // then fall back to system PATH.
+    // Look next to the app executable and in the bundle resource dir first,
+    // then fall back to PATH. Windows ships `pandoc.exe`; other platforms `pandoc`.
+    let names = pandoc_binary_names();
+    let mut dirs: Vec<PathBuf> = Vec::new();
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
-            let bundled = dir.join("pandoc.exe");
-            if bundled.exists() {
-                return bundled.to_string_lossy().to_string();
-            }
+            dirs.push(dir.to_path_buf());
         }
     }
     if let Ok(res_dir) = app.path().resource_dir() {
-        let bundled = res_dir.join("pandoc.exe");
-        if bundled.exists() {
-            return bundled.to_string_lossy().to_string();
+        dirs.push(res_dir);
+    }
+    for dir in dirs {
+        for name in names {
+            let candidate = dir.join(name);
+            if candidate.exists() {
+                return candidate.to_string_lossy().to_string();
+            }
         }
     }
     "pandoc".to_string()
@@ -288,6 +300,7 @@ fn export_pandoc_blocking(
     in_path: PathBuf,
     out_path: PathBuf,
     markdown: String,
+    pandoc_args: Vec<String>,
 ) -> Result<Vec<u8>, String> {
     use std::process::Command;
 
@@ -298,13 +311,14 @@ fn export_pandoc_blocking(
         .arg(&in_path)
         .arg("-o")
         .arg(&out_path)
+        .args(&pandoc_args)
         .output()
     {
         Ok(output) => output,
         Err(e) => {
             let _ = fs::remove_file(&in_path);
             return Err(format!(
-                "Pandoc not found. Please install Pandoc (https://pandoc.org/installing.html) or place pandoc.exe next to the application. Error: {}",
+                "تعذّر العثور على Pandoc. ثبّت Pandoc من https://pandoc.org/installing.html أو ضع pandoc.exe بجوار التطبيق. (خطأ: {})",
                 e
             ));
         }
@@ -314,7 +328,7 @@ fn export_pandoc_blocking(
         let err = String::from_utf8_lossy(&output.stderr);
         let _ = fs::remove_file(&in_path);
         let _ = fs::remove_file(&out_path);
-        return Err(format!("Pandoc error: {}", err));
+        return Err(format!("فشل Pandoc: {}", err));
     }
 
     let bytes = match fs::read(&out_path) {
@@ -345,8 +359,47 @@ async fn export_pandoc(
     let in_path = ws_path.join(".temp_export.md");
     let out_path = ws_path.join(format!(".temp_export.{}", format));
 
+    let mut pandoc_args: Vec<String> = vec![
+        "-f".to_string(),
+        "markdown+latex_macros+tex_math_dollars".to_string(),
+    ];
+    if format == "docx" {
+        let rtl = markdown
+            .lines()
+            .any(|l| l.trim().eq_ignore_ascii_case("dir: rtl"));
+        let lang = markdown
+            .lines()
+            .find_map(|l| l.trim().strip_prefix("lang:"))
+            .map(|s| s.trim().trim_matches('"').trim_matches('\'').to_string())
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "ar".to_string());
+        pandoc_args.push("-M".to_string());
+        pandoc_args.push(format!("lang={}", lang));
+        if rtl {
+            pandoc_args.push("-M".to_string());
+            pandoc_args.push("dir=rtl".to_string());
+        }
+
+        let reference = resource_path(
+            &app,
+            "reference.docx",
+            "src-tauri/resources/reference.docx",
+        );
+        if reference.exists() {
+            pandoc_args.push("--reference-doc".to_string());
+            pandoc_args.push(reference.to_string_lossy().to_string());
+        }
+
+        let bib = ws_path.join("references.bib");
+        if bib.exists() {
+            pandoc_args.push("--citeproc".to_string());
+            pandoc_args.push("--bibliography".to_string());
+            pandoc_args.push(bib.to_string_lossy().to_string());
+        }
+    }
+
     tauri::async_runtime::spawn_blocking(move || {
-        export_pandoc_blocking(pandoc_bin, ws_path, in_path, out_path, markdown)
+        export_pandoc_blocking(pandoc_bin, ws_path, in_path, out_path, markdown, pandoc_args)
     })
     .await
     .map_err(|e| format!("export task: {}", e))?
@@ -697,5 +750,75 @@ mod tests {
         for bad in ["pdf", "", "docx ", " docx", "../docx", "docx\0"] {
             assert!(normalize_export_format(bad).is_err(), "accepted {bad:?}");
         }
+    }
+
+    #[test]
+    fn pandoc_candidates_cover_both_platform_names() {
+        let names = pandoc_binary_names();
+        assert!(names.contains(&"pandoc"), "missing pandoc: {names:?}");
+        assert!(names.contains(&"pandoc.exe"), "missing pandoc.exe: {names:?}");
+    }
+
+    fn temp_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("sw-pandoc-{}-{}", std::process::id(), name));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn docx_export_runs_pandoc_when_available() {
+        if std::process::Command::new("pandoc")
+            .arg("--version")
+            .output()
+            .is_err()
+        {
+            return; // optional external tool
+        }
+        let dir = temp_dir("docx");
+        let in_path = dir.join(".temp_export.md");
+        let out_path = dir.join(".temp_export.docx");
+        let reference = Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/reference.docx");
+        let args = vec![
+            "-f".to_string(),
+            "markdown+latex_macros+tex_math_dollars".to_string(),
+            "-M".to_string(),
+            "lang=ar".to_string(),
+            "-M".to_string(),
+            "dir=rtl".to_string(),
+            "--reference-doc".to_string(),
+            reference.to_string_lossy().to_string(),
+        ];
+        let markdown = "---\ntitle: Test\ndir: rtl\nlang: ar\n---\n\n# عنوان\n\nمرحبا $x^2$\n";
+        let bytes = export_pandoc_blocking(
+            "pandoc".to_string(),
+            dir.clone(),
+            in_path.clone(),
+            out_path.clone(),
+            markdown.to_string(),
+            args,
+        )
+        .expect("pandoc docx export");
+        assert!(bytes.starts_with(b"PK"), "not a zip/docx");
+        assert!(!in_path.exists() && !out_path.exists(), "temp files not cleaned");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn missing_pandoc_reports_a_clear_error() {
+        let dir = temp_dir("missing-pandoc");
+        let in_path = dir.join(".temp_export.md");
+        let out_path = dir.join(".temp_export.docx");
+        let err = export_pandoc_blocking(
+            "definitely-not-pandoc-xyz".to_string(),
+            dir.clone(),
+            in_path,
+            out_path,
+            "text".to_string(),
+            vec![],
+        )
+        .unwrap_err();
+        assert!(err.contains("Pandoc"), "error was: {err}");
+        let _ = fs::remove_dir_all(&dir);
     }
 }

@@ -34,3 +34,4 @@ export * from './registry';
 export * from './user-symbols';
 export * from './arabic-gallery';
 export * from './equation-snippet';
+export * from './to-pandoc';

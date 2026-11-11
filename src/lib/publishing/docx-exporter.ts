@@ -1,5 +1,6 @@
 import type { DocumentModel } from './ast';
 import type { Exporter, ExportResult } from './exporter';
+import { documentToPandocMarkdown } from './pandoc-markdown';
 import { invoke } from '@tauri-apps/api/core';
 import { getWorkspaceDir } from '$lib/fs';
 
@@ -8,21 +9,9 @@ export class DocxExporter implements Exporter {
   readonly label = 'Word (DOCX)';
   readonly extensions = ['docx'];
 
-  async export(model: DocumentModel, rawMarkdown?: string): Promise<ExportResult> {
+  async export(model: DocumentModel): Promise<ExportResult> {
     const workspace = await getWorkspaceDir();
-    const markdown = rawMarkdown || '';
-    
-    // We add some basic YAML frontmatter to help pandoc layout
-    const direction = model.meta.direction !== 'ltr' ? 'rtl' : 'ltr';
-    const mainfont = direction === 'rtl' ? 'Traditional Arabic' : 'Times New Roman';
-    
-    let pandocMarkdown = `---
-title: "${model.meta.title || ''}"
-dir: ${direction}
-mainfont: "${mainfont}"
----
-
-${markdown}`;
+    const pandocMarkdown = documentToPandocMarkdown(model);
 
     try {
       const bytes = await invoke<number[]>('export_pandoc', {

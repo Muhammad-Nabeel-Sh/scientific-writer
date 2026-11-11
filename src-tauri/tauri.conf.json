@@ -61,6 +61,7 @@
     "resources": {
       "db/dicts.sqlite": "db/dicts.sqlite",
       "resources/hunspell/*": "hunspell/",
+      "resources/reference.docx": "reference.docx",
       "../docs/hadith-json-1.2.0/db/by_book/the_9_books/*.json": "hadith/"
     }
   },
