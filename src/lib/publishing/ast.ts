@@ -268,6 +268,10 @@ export interface DocumentMeta {
   date?: string;
   lang?: string;
   direction?: 'rtl' | 'ltr';
+  /** The app's digit style; used by the LaTeX exporter for polyglossia numerals. */
+  digitStyle?: 'auto' | 'eastern' | 'western';
+  /** Arabic text font family for XeLaTeX; defaults to Amiri. */
+  arabicFont?: string;
   [key: string]: unknown;
 }
 

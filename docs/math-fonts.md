@@ -60,6 +60,20 @@ Where it is used (`src/app.css`, section "Katib Math"):
 4. **Export (Phase 4):** `fonts-src/katib-math/dist/KatibMath-Regular.otf` with
    `unicode-math`.
 
+### Compiling the LaTeX export
+
+The exported `.tex` uses XeLaTeX and expects the committed math font next to it:
+
+```bash
+cp fonts-src/katib-math/dist/KatibMath-Regular.otf .
+xelatex document.tex
+```
+
+The Arabic text font defaults to **Amiri** (install it system-wide, or change
+`\setmainfont{...}` in the preamble). The exporter writes
+`\setmathfont[Path=./]{KatibMath-Regular.otf}`, so keeping the OTF in the same
+folder is enough.
+
 Verified in the running app (Chromium), `docs/images/math/katib-math.png`:
 - mirrored ∑ and √ in `$$[rtl]`, plus Arabic-Indic digits
 - Arabic text and function names in LTR formulas drawn with Katib Math

@@ -2,8 +2,96 @@ import type { Exporter, ExportResult } from './exporter';
 import type { DocumentModel, BlockNode, InlineNode, TableRowNode } from './ast';
 import type { BibEntry } from '../bibliography';
 
-function escapeLatex(s: string): string {
-  return s.replace(/[\\{}&%$#_^~]/g, m => `\\${m}`);
+const LATEX_ESCAPES: Record<string, string> = {
+  '\\': '\\textbackslash{}',
+  '{': '\\{',
+  '}': '\\}',
+  '&': '\\&',
+  '%': '\\%',
+  '$': '\\$',
+  '#': '\\#',
+  '_': '\\_',
+  '^': '\\textasciicircum{}',
+  '~': '\\textasciitilde{}',
+};
+
+export function escapeLatex(s: string): string {
+  // One pass: replacing \\ first would corrupt the braces in its replacement.
+  return s.replace(/[\\{}&%$#_^~]/g, (m) => LATEX_ESCAPES[m]);
+}
+
+/** Safe LaTeX label key: keep Unicode letters/numbers, `: . _ -`, replace the rest. */
+export function latexLabel(s: string): string {
+  return s.replace(/[^\p{L}\p{N}:._-]+/gu, '-').replace(/^-+|-+$/g, '') || 'eq';
+}
+
+export type LatexNumerals = 'mashriq' | 'maghrib';
+
+export interface LatexPreambleOptions {
+  rtl: boolean;
+  numerals: LatexNumerals;
+  arabicFont?: string;
+  title?: string;
+  author?: string;
+  date?: string;
+}
+
+/** Map the app's digit style to polyglossia's Arabic numerals option. */
+export function numeralsFor(digitStyle: unknown, rtl: boolean): LatexNumerals {
+  if (digitStyle === 'western') return 'maghrib';
+  if (digitStyle === 'eastern') return 'mashriq';
+  return rtl ? 'mashriq' : 'maghrib';
+}
+
+function safeArabicFont(font: string | undefined): string {
+  const cleaned = (font || 'Amiri').replace(/[^A-Za-z0-9 ._-]/g, '').trim();
+  return cleaned || 'Amiri';
+}
+
+export function buildLatexPreamble(o: LatexPreambleOptions): string {
+  const arabicFont = safeArabicFont(o.arabicFont);
+  const title = escapeLatex(o.title || '');
+  const author = escapeLatex(o.author || '');
+  const date = escapeLatex(o.date || '');
+  const common = `\\usepackage{amsmath,amssymb,mathtools}
+\\usepackage{hyperref}
+\\usepackage{graphicx}
+\\usepackage{listings}
+\\usepackage{soul}
+\\usepackage{caption}
+\\usepackage{geometry}
+\\geometry{right=2.5cm,left=2.5cm,top=2.5cm,bottom=2.5cm}`;
+
+  if (o.rtl) {
+    return `% Compile with: xelatex <file>.tex
+% Place fonts-src/katib-math/dist/KatibMath-Regular.otf next to this file.
+\\documentclass[12pt,a4paper]{article}
+${common}
+\\usepackage{fontspec}
+\\usepackage{unicode-math}
+\\usepackage{polyglossia}
+\\setmainlanguage[numerals=${o.numerals}]{arabic}
+\\setotherlanguage{english}
+\\setmainfont{${arabicFont}}
+\\newfontfamily\\arabicfont[Script=Arabic,Scale=1.2]{${arabicFont}}
+\\setmathfont[Path=./]{KatibMath-Regular.otf}
+\\begin{document}
+\\title{${title}}
+\\author{${author}}
+\\date{${date}}
+\\maketitle
+`;
+  }
+
+  return `\\documentclass[12pt,a4paper]{article}
+${common}
+\\usepackage[utf8]{inputenc}
+\\begin{document}
+\\title{${title}}
+\\author{${author}}
+\\date{${date}}
+\\maketitle
+`;
 }
 
 function renderInline(nodes: InlineNode[]): string {
@@ -19,8 +107,8 @@ function renderInline(nodes: InlineNode[]): string {
       case 'inlineMath': out += `$${n.value}$`; break;
       case 'footnoteRef': out += `\\footnotemark[${n.id}]`; break;
       case 'citation': out += `\\cite{${n.key}}`; break;
-      case 'equationRef': out += `(${n.ref})`; break;
-      case 'blockRef': out += `(${n.ref})`; break;
+      case 'equationRef': out += `\\eqref{eq:${latexLabel(n.ref)}}`; break;
+      case 'blockRef': out += `(${escapeLatex(n.display || n.ref)})`; break;
       case 'wikiLink': out += escapeLatex(n.display || n.target); break;
       case 'lineBreak': out += `\\\\`; break;
       case 'inlineImage': out += `\\includegraphics{${n.src}}`; break;
@@ -69,7 +157,10 @@ function renderBlocks(blocks: BlockNode[]): string {
         out += '\n';
         break;
       case 'mathBlock':
-        out += `\\begin{equation}\n${block.value}\n\\end{equation}\n\n`;
+        const eqLabel = block.label ?? (block.number != null ? String(block.number) : undefined);
+        out += `\\begin{equation}\n`;
+        if (eqLabel) out += `\\label{eq:${latexLabel(eqLabel)}}\n`;
+        out += `${block.value}\n\\end{equation}\n\n`;
         break;
       case 'footnoteDefinition':
         out += `\\footnotetext[${block.id}]{${renderBlocks(block.children).trim()}}\n\n`;
@@ -128,42 +219,15 @@ export class LatexExporter implements Exporter {
 
   export(model: DocumentModel): ExportResult {
     const rtl = model.meta.direction === 'rtl' || model.meta.lang === 'ar';
-    const lang = model.meta.lang || 'arabic';
-    const useXelatex = rtl;
-    const preamble = useXelatex
-      ? `\\documentclass[12pt,a4paper]{article}
-\\usepackage{fontspec}
-\\usepackage{polyglossia}
-\\setmainlanguage[numerals=maghrib]{arabic}
-\\setotherlanguage{english}
-\\newfontfamily\\arabicfont[Script=Arabic,Scale=1.2]{Traditional Arabic}
-\\usepackage{hyperref}
-\\usepackage{graphicx}
-\\usepackage{listings}
-\\usepackage{soul}
-\\usepackage{caption}
-\\usepackage{geometry}
-\\geometry{right=2.5cm,left=2.5cm,top=2.5cm,bottom=2.5cm}
-\\begin{document}
-\\title{${escapeLatex(model.meta.title || '')}}
-\\author{${escapeLatex(model.meta.author || '')}}
-\\date{${escapeLatex(model.meta.date || '')}}
-\\maketitle
-`
-      : `\\documentclass[12pt,a4paper]{article}
-\\usepackage[utf8]{inputenc}
-\\usepackage{hyperref}
-\\usepackage{graphicx}
-\\usepackage{listings}
-\\usepackage{soul}
-\\usepackage{caption}
-\\usepackage{geometry}
-\\geometry{right=2.5cm,left=2.5cm,top=2.5cm,bottom=2.5cm}
-\\begin{document}
-\\title{${escapeLatex(model.meta.title || '')}}
-\\author{${escapeLatex(model.meta.author || '')}}
-\\maketitle
-`;
+    const numerals = numeralsFor(model.meta.digitStyle, rtl);
+    const preamble = buildLatexPreamble({
+      rtl,
+      numerals,
+      arabicFont: typeof model.meta.arabicFont === 'string' ? model.meta.arabicFont : undefined,
+      title: model.meta.title,
+      author: model.meta.author,
+      date: model.meta.date,
+    });
     const body = renderBlocks(model.blocks);
     const bib = renderBibliography(model.bibEntries);
     return { content: `${preamble}\n${body}\n${bib}\n\\end{document}\n`, extension: 'tex', mime: 'application/x-latex' };

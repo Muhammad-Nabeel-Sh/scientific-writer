@@ -188,6 +188,10 @@
 
       const { parseDocument } = await import('$lib/publishing/document');
       const doc = parseDocument($noteContent || '', $bibEntries);
+      doc.meta.lang = doc.meta.lang || 'ar';
+      doc.meta.direction = doc.meta.direction || 'rtl';
+      doc.meta.digitStyle = $digitStyle;
+      doc.meta.arabicFont = $fontSettings.family;
       const result = await exporter.export(doc, $noteContent);
 
       let blob: Blob;
