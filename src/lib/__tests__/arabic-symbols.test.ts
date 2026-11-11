@@ -68,10 +68,64 @@ describe('built-in Arabic symbol sets', () => {
   });
 });
 
+describe('mirrored operators, Arabic signs and number sets', () => {
+  it('all are valid, registered and render with no issues', async () => {
+    const { MIRRORED_OPERATORS, ARABIC_SIGNS, NUMBER_SETS } = await import('$lib/math/symbols/arabic-operators');
+    for (const s of [...MIRRORED_OPERATORS, ...ARABIC_SIGNS, ...NUMBER_SETS]) {
+      expect(validateSymbol(s), s.name).toEqual([]);
+      expect(getSymbol(s.name), s.name).toBeDefined();
+      const args = '{س}'.repeat(s.arity ?? 0);
+      expect(issues(`\\${s.name}${args}`, true), s.name).toEqual([]);
+    }
+  });
+
+  it('a mirrored sum behaves like \\sum: large, limits under in display, at the side inline', () => {
+    const vis = (tex: string, display: boolean) => {
+      const h = renderMath(tex, { display });
+      return h.slice(h.indexOf('katex-html'));
+    };
+    const disp = vis('\\rsum_{ن=1}^{ك}', true);
+    expect(disp).toContain('sw-mirror');
+    expect(disp).toContain('large-op');
+    expect(disp).toContain('op-limits');
+    expect(vis('\\rsum_{ن=1}^{ك}', false)).not.toContain('op-limits');
+    // integrals keep side limits even in display
+    expect(vis('\\rint_0^1', true)).not.toContain('op-limits');
+    expect(vis('\\rint_0^1', true)).toContain('large-op');
+  });
+
+  it('a mirrored radical flips the sign but flips its content back', () => {
+    const h = renderMath('\\rsqrt{س+1}', { display: false });
+    const v = h.slice(h.indexOf('katex-html'));
+    expect(v.match(/sw-mirror/g)).toHaveLength(2);
+    expect(renderMath('\\rroot{3}{س}', { display: false }).match(/sw-mirror/g)!.length).toBe(3);
+  });
+
+  it('in RTL equations the mirrored operators carry no CSS flip (rtlm mirrors them)', () => {
+    expect(renderMath('\\rsum_{ن=1}^{ك} + \\rint', { display: true, dir: 'rtl' })).not.toContain('sw-mirror');
+  });
+
+  it('number sets use the double-struck Arabic letters', () => {
+    expect(renderMath('\\arReals', { display: false })).toContain(String.fromCodePoint(0x1eea7)); // DS HAH
+    expect(renderMath('\\arIntegers', { display: false })).toContain(String.fromCodePoint(0x1eeb1)); // DS SAD
+  });
+
+  it('gallery shows the new groups after the functions', () => {
+    const ids = arabicGalleryGroups().map((g) => g.id);
+    expect(ids.slice(0, 5)).toEqual(['templates', 'functions', 'mirrored', 'number-sets', 'signs']);
+    expect(ids).not.toContain('others');
+    const names = (q: string) => filterGallery(arabicGalleryGroups(), q).flatMap((g) => g.items.map((i) => i.id));
+    expect(names('مجموع معكوس')).toContain('sym-rsum');
+    expect(names('حقيقية')).toContain('sym-arReals');
+    expect(names('٪')).toContain('sym-arPercent');
+  });
+});
+
 describe('gallery data', () => {
   it('groups templates, functions and each letter variant', () => {
     const ids = arabicGalleryGroups().map((g) => g.id);
-    expect(ids.slice(0, 3)).toEqual(['templates', 'functions', 'letters-isolated']);
+    expect(ids.slice(0, 2)).toEqual(['templates', 'functions']);
+    expect(ids.indexOf('letters-isolated')).toBeGreaterThan(ids.indexOf('signs'));
     expect(ids).toEqual(expect.arrayContaining([
       'letters-initial', 'letters-tailed', 'letters-stretched', 'letters-looped',
       'letters-double-struck', 'letters-dotless', 'letters-operator',

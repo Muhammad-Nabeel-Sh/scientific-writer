@@ -453,6 +453,15 @@ html, body { height: 100%; overflow: hidden; direction: rtl; background: var(--b
 }
 .katex .sw-sym { white-space: nowrap; }
 
+/* Mirrored operators (\rsum, \rint, \rsqrt …, src/lib/math/symbols/arabic-operators.ts):
+   KaTeX's own operator, flipped horizontally; size, limits and spacing are
+   unchanged. Radical content is flipped back. RTL equations are MathML and
+   carry no sw-mirror class: Katib Math's 'rtlm' forms mirror them there. */
+.katex .sw-mirror {
+  display: inline-block;
+  transform: scaleX(-1);
+}
+
 /* Experimental right-to-left math (MathML only, M7). Katib Math has the MATH
    table, the 'rtlm' mirrored forms and Arabic, so RTL math looks the same on
    every OS; the system math font is only a fallback. */

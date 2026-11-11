@@ -5,7 +5,36 @@
  */
 import { normalizeArabic } from '../search';
 import { getSymbols, getSymbolSource, type MathSymbol } from './registry';
-import { arabicLetterVariant, type ArabicLetterVariant } from './symbols';
+import {
+  arabicLetterVariant,
+  ARABIC_SIGNS,
+  MIRRORED_OPERATORS,
+  NUMBER_SETS,
+  type ArabicLetterVariant,
+} from './symbols';
+
+/** Nicer previews than the bare macro, for symbols that take limits or arguments. */
+const PREVIEWS: Record<string, string> = {
+  nihaya: '\\nihaya_{س \\to 0}',
+  majmu: '\\majmu_{ن=1}^{ك}',
+  rsum: '\\rsum_{ن=1}^{ك}',
+  rint: '\\rint_{0}^{1}',
+  riint: '\\riint',
+  riiint: '\\riiint',
+  roint: '\\roint',
+  roiint: '\\roiint',
+  rsqrt: '\\rsqrt{س}',
+  rroot: '\\rroot{3}{س}',
+  arCubeRoot: '\\arCubeRoot س',
+  arFourthRoot: '\\arFourthRoot س',
+  arPercent: '50\\arPercent',
+};
+
+/** What gets inserted for symbols with arguments: the user fills the braces. */
+const INSERTS: Record<string, string> = {
+  rsqrt: '\\rsqrt{}',
+  rroot: '\\rroot{3}{}',
+};
 
 export interface GalleryItem {
   id: string;
@@ -61,15 +90,12 @@ const VARIANT_GROUPS: { variant: ArabicLetterVariant; label: string }[] = [
 /** Insert / preview TeX for one registry symbol. */
 export function symbolItem(sym: MathSymbol): GalleryItem {
   const call = `\\${sym.name}` + '{س}'.repeat(sym.arity ?? 0);
-  let preview = call;
-  if (sym.name === 'nihaya') preview = '\\nihaya_{س \\to 0}';
-  else if (sym.name === 'majmu') preview = '\\majmu_{ن=1}^{ك}';
-  else if (sym.category === 'arabic-function') preview = `${call} س`;
+  const preview = PREVIEWS[sym.name] ?? (sym.category === 'arabic-function' ? `${call} س` : call);
   return {
     id: `sym-${sym.name}`,
     label: sym.labelAr,
     // trailing space: "\jaa س" must not become "\jaaس"
-    insert: (sym.arity ?? 0) > 0 ? call : `${call} `,
+    insert: INSERTS[sym.name] ?? ((sym.arity ?? 0) > 0 ? call : `${call} `),
     preview,
     keywords: [sym.name, ...sym.keywords],
   };
@@ -85,13 +111,29 @@ export function arabicGalleryGroups(symbols: MathSymbol[] = getSymbols()): Galle
   const functions = builtin.filter((s) => s.category === 'arabic-function');
   if (functions.length) groups.push({ id: 'functions', label: 'الدوال العربية', items: functions.map(symbolItem), open: true });
 
+  // Named built-in sets, in this order, before the alphabet.
+  const named: { id: string; label: string; set: MathSymbol[]; open?: boolean }[] = [
+    { id: 'mirrored', label: 'رموز معكوسة (∑ ∫ √ …)', set: MIRRORED_OPERATORS, open: true },
+    { id: 'number-sets', label: 'مجموعات الأعداد', set: NUMBER_SETS },
+    { id: 'signs', label: 'علامات عربية (؆ ؇ ؈ ٪ ؉)', set: ARABIC_SIGNS },
+  ];
+  const inNamed = new Set<string>();
+  for (const { id, label, set, open } of named) {
+    const names = new Set(set.map((s) => s.name));
+    const items = builtin.filter((s) => names.has(s.name));
+    items.forEach((s) => inNamed.add(s.name));
+    if (items.length) groups.push({ id, label, items: items.map(symbolItem), open });
+  }
+
   const letters = builtin.filter((s) => s.category === 'arabic-letter');
   for (const { variant, label } of VARIANT_GROUPS) {
     const items = letters.filter((s) => arabicLetterVariant(s.name) === variant).map(symbolItem);
     if (items.length) groups.push({ id: `letters-${variant}`, label, items, open: variant === 'isolated' });
   }
 
-  const others = builtin.filter((s) => s.category !== 'arabic-function' && s.category !== 'arabic-letter');
+  const others = builtin.filter(
+    (s) => s.category !== 'arabic-function' && s.category !== 'arabic-letter' && !inNamed.has(s.name),
+  );
   if (others.length) groups.push({ id: 'others', label: 'رموز أخرى', items: others.map(symbolItem) });
   if (user.length) groups.push({ id: 'user', label: 'رموزي المخصصة', items: user.map(symbolItem), open: true });
   return groups;

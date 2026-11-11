@@ -380,6 +380,21 @@ Claude's tasks are done: **M1, M2, M3, M10** completely, plus **M6 and M7 as dec
   The preview follows the options, gallery items insert at the caret, and the options are remembered between openings. The snippet logic is `buildEquationSnippet()` in `src/lib/math/equation-snippet.ts`, which is tested. Original task text: Add `[rtl]` / `[ltr]` toggle buttons (or a checkbox "اتجاه عربي") to `EquationDialog` that insert `$$[rtl]` instead of `$$`. The live preview uses `renderMath(..., { dir })`. | Inserted equation renders RTL in the preview |
 | M14 ✅ | [CL] | **Bidi in LTR KaTeX output:** stop the browser from reordering atoms when Arabic sits next to operators or numbers. **Done:** `isolateArabicRuns()` in `katex-instance.ts` wraps each Arabic run of the visible HTML layer (not the MathML layer) in `<span class="sw-ar" dir="rtl">`. `app.css` sets `bidi-override; direction: ltr` on `.katex-html` and every descendant, because each nested inline-block starts a new bidi context, and makes `.sw-ar` an RTL isolate. KaTeX merges adjacent same-class characters, so a word or a `\text{}` phrase is one run and stays joined. Verified in the running app by DOM positions (`س → 0` at x 72 → 95 → 119; `ب + 12` in order) and a screenshot (`docs/images/math/ltr-bidi-fixed.png`); `math-bidi.test.ts`. **Known limit:** adjacent Arabic variables without a space or command between them (`$سص$`) are merged by KaTeX into one run, so they join like a word. Write `س\,ص` or `س \cdot ص` for a product. | `\nihaya_{س \to 0}` shows `س → 0` left to right; Arabic words stay joined; tests on the produced HTML plus a screenshot |
 | M15 | [OC] | Katib Math follow-ups: shrink the WOFF2 by dropping Amiri's ornamental `ss0x` alternates in `build.py` (keep a test that shaping still joins `جتا`); add a Bold build if wanted. | WOFF2 smaller; `npm run test` green |
+| M16 ✅ | [CL] | **Mirrored operators, Arabic signs and number sets** (`symbols/arabic-operators.ts`, done 2026-11-11):
+  - **Mirrored operators**, each KaTeX's own operator flipped by CSS (`.sw-mirror`): `\rsum`, `\rint`, `\riint`, `\riiint`, `\roint`, `\roiint`, `\rsqrt{x}`, `\rroot{n}{x}`, `\rpartial`, `\rexists`, `\rnexists`, `\ranglesign`, `\rmeasuredangle`, `\rpropto`, `\rcomplement`. They keep their size, limits and spacing, and radical content is flipped back. In `[rtl]` equations they carry no flip, because Katib Math's `rtlm` mirrors everything there.
+  - **Unicode's Arabic math signs**: `\arCubeRoot` ؆, `\arFourthRoot` ؇, `\arRay` ؈, `\arPercent` ٪, `\arPermille` ؉, `\arPerTenThousand` ؊.
+  - **Number sets** `\arNaturals` ط, `\arIntegers` ص, `\arRationals` ن, `\arReals` ح (double-struck) and `\arComplex` ك (bold, because Unicode has no double-struck Kaf).
+
+  The gallery has groups for each. Verified in the app: ∑ → Ƹ with upright limits, the radical sign on the right with readable content, number sets in order. Tests are in `arabic-symbols.test.ts`. LaTeX bodies use `\reflectbox` (graphicx) for E3. | — |
+| M17 | [OC] | **Possible further Arabic notation; confirm with the author first, because conventions differ between countries:**
+  - GCD/LCM abbreviations (ق.م.أ / م.م.أ) as `\operatorname` macros
+  - a determinant/matrix-name convention (محدد)
+  - modulo (باقي القسمة)
+  - an Arabic factorial convention (the `!` before the number in RTL texts; check with the curriculum)
+  - Arabic interval notation with `؛` as separator
+  - templates for set-builder notation with `،`
+
+  Each one is a `fn()`/macro entry plus a test. | Author picks the conventions; each new symbol renders with no issues |
 
 ### Phase 4 — Exporters
 
