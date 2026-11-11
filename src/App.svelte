@@ -6,6 +6,7 @@
     recentWorkspaces, loadRecentWorkspaces, addRecentWorkspace,
     lastBackupTime, BACKUP_INTERVAL, exportStatus,
     loadKeybindings, keybindings, highlightTheme, noteLoading,
+    symbolEditorRequest,
   } from "$lib/stores";
   import { noteSaver, REFERENCES_ID } from "$lib/note-saver";
   import { installExternalLinkHandler } from "$lib/external-links";
@@ -30,6 +31,7 @@
   import QuickOpen from "./components/QuickOpen.svelte";
   import Tabs from "./components/Tabs.svelte";
   import AssetsPanel from "./components/AssetsPanel.svelte";
+  import SymbolEditorDialog from "./components/SymbolEditorDialog.svelte";
   import { reloadWorkspaceSymbols } from "$lib/math-workspace";
 
   let showSplash = true;
@@ -378,6 +380,10 @@
 
 {#if showAssets}
   <AssetsPanel on:close={() => (showAssets = false)} />
+{/if}
+
+{#if $symbolEditorRequest}
+  <SymbolEditorDialog />
 {/if}
 
 {#if $exportStatus.exporting || $exportStatus.label}

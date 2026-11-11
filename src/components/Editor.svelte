@@ -9,6 +9,7 @@
     keybindings,
     exportStatus,
     noteLoading,
+    symbolEditorRequest,
   } from "$lib/stores";
   import { get } from "svelte/store";
   import { tick, onMount } from "svelte";
@@ -1121,6 +1122,21 @@
         />
       </svg>
       <span>معادلة</span>
+    </button>
+    <button class="tb-quran" title="إضافة رمز مخصص" on:click={() => ($symbolEditorRequest = {})}>
+      <svg
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        fill="none"
+        stroke-width="2.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <circle cx="12" cy="12" r="9" />
+        <line x1="12" y1="8" x2="12" y2="16" />
+        <line x1="8" y1="12" x2="16" y2="12" />
+      </svg>
+      <span>رمز</span>
     </button>
     <button class="tb-quran" on:click={() => (showEnvironmentDialog = true)}>
       <svg
