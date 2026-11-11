@@ -14,6 +14,7 @@
     type MathSymbol,
     type SymbolCategory,
   } from '$lib/math';
+  import { emptySymbolForm, formFromSymbol, formToSymbol } from '$lib/math/symbol-form';
   import { saveWorkspaceSymbols } from '$lib/math-workspace';
   import { sanitizeHtml } from '$lib/sanitize';
 
@@ -38,43 +39,29 @@
     ? getSymbol(initialName)
     : undefined;
 
+  const form = existing ? formFromSymbol(existing) : emptySymbolForm(initialName);
   let originalName = existing?.name ?? '';
-  let name = existing?.name ?? initialName;
-  let labelAr = existing?.labelAr ?? '';
-  let keywords = existing ? existing.keywords.join('، ') : '';
-  let category: SymbolCategory = existing?.category ?? 'misc';
-  let kind: 'macro' | 'glyph' = existing?.katex.kind ?? 'macro';
-  let macroBody = existing?.katex.kind === 'macro' ? existing.katex.body : '';
-  let glyphChar = existing?.katex.kind === 'glyph' ? existing.katex.char : '';
-  let glyphFont = existing?.katex.kind === 'glyph' ? existing.katex.font : 'arabicmath';
-  let glyphAtom: GlyphAtom = existing?.katex.kind === 'glyph' ? existing.katex.atom : 'mathord';
-  let arity: 0 | 1 | 2 = existing?.arity ?? 0;
-  let latexBody = existing?.latex.body ?? '';
+  let name = form.name;
+  let labelAr = form.labelAr;
+  let keywords = form.keywords;
+  let category: SymbolCategory = form.category;
+  let kind: 'macro' | 'glyph' = form.kind;
+  let macroBody = form.macroBody;
+  let glyphChar = form.glyphChar;
+  let glyphFont = form.glyphFont;
+  let glyphAtom: GlyphAtom = form.glyphAtom;
+  let arity: 0 | 1 | 2 = form.arity;
+  let latexBody = form.latexBody;
 
   let nameInput: HTMLInputElement;
   let previewHtml = '';
   let previewIssues: string[] = [];
   let saveError = '';
   let saving = false;
-  let candidate: MathSymbol = buildSymbol();
+  let candidate: MathSymbol;
   let errors: string[] = [];
 
   const isEditing = !!existing;
-
-  function buildSymbol(): MathSymbol {
-    return {
-      name: name.trim(),
-      category,
-      labelAr: labelAr.trim(),
-      keywords: keywords.split(/[،,]/).map((k) => k.trim()).filter(Boolean),
-      arity: kind === 'macro' ? arity : 0,
-      katex:
-        kind === 'macro'
-          ? { kind: 'macro', body: macroBody }
-          : { kind: 'glyph', char: glyphChar, font: glyphFont, atom: glyphAtom },
-      latex: { body: latexBody.trim() || (kind === 'glyph' ? glyphChar : '') },
-    };
-  }
 
   function previewTex(sym: MathSymbol): string {
     const expansion = katexExpansion(sym);
@@ -93,7 +80,12 @@
     return [];
   }
 
-  $: candidate = buildSymbol();
+  // Every field is listed here on purpose: Svelte re-runs a `$:` statement only
+  // for variables that appear in it. (It used to call buildSymbol(), which read
+  // the fields internally, so the candidate never updated and Save stayed disabled.)
+  $: candidate = formToSymbol({
+    name, labelAr, keywords, category, kind, macroBody, arity, glyphChar, glyphFont, glyphAtom, latexBody,
+  });
   $: errors = [...validateSymbol(candidate), ...admissionErrors(candidate)];
   $: {
     const issues: string[] = [];
@@ -243,8 +235,12 @@
         {/if}
 
         <label class="field">
-          <span>صيغة LaTeX للتصدير</span>
-          <input bind:value={latexBody} dir="ltr" placeholder={'\\operatorname{\\textarabic{جا}}'} />
+          <span>صيغة LaTeX للتصدير (اختياري)</span>
+          <input
+            bind:value={latexBody}
+            dir="ltr"
+            placeholder={kind === 'macro' ? 'إن تُرك فارغًا يُستخدم جسم الماكرو' : 'إن تُرك فارغًا يُستخدم الحرف نفسه'}
+          />
         </label>
       </div>
 
