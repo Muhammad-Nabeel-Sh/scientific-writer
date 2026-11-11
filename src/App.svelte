@@ -30,6 +30,7 @@
   import QuickOpen from "./components/QuickOpen.svelte";
   import Tabs from "./components/Tabs.svelte";
   import AssetsPanel from "./components/AssetsPanel.svelte";
+  import { reloadWorkspaceSymbols } from "$lib/math-workspace";
 
   let showSplash = true;
   let leftWidth = 280;
@@ -68,6 +69,12 @@
     const data = await initWorkspace(fromWorkspace);
     $hierarchy = data;
     pushHierarchySnapshot(data);
+    const symbolProblems = await reloadWorkspaceSymbols();
+    if (symbolProblems.length > 0) {
+      console.warn('[math] math-symbols.json:', symbolProblems);
+      $exportStatus = { exporting: false, label: '', error: `مشكلات في الرموز المخصصة: ${symbolProblems[0]}` };
+      setTimeout(() => ($exportStatus = { exporting: false, label: '' }), 8000);
+    }
     const bibContent = await ensureBibliography();
     $bibEntries = parseBibTeX(bibContent);
     $backlinksIndex = await buildBacklinksIndex(data);

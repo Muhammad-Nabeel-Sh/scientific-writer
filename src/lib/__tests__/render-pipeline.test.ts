@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { renderDocument, analyzeMarkdown, renderMarkdown } from '$lib/markdown';
-import { renderTex } from '$lib/md/math';
+import { renderMath } from '$lib/math';
 import { parseBibTeX } from '$lib/bibliography';
 
 const bib = parseBibTeX(`@book{smith2020, author={Smith, John}, title={T}, year={2020}}`);
@@ -61,7 +61,7 @@ describe('equations', () => {
 
   it('exposes per-equation diagnostics for the equation dialog', () => {
     const warnings: string[] = [];
-    renderTex('\\notamacro{x}', true, (m) => warnings.push(m));
+    renderMath('\\notamacro{x}', { display: true, onIssue: (i) => warnings.push(i.message) });
     expect(warnings.some((m) => /notamacro/.test(m))).toBe(true);
   });
 

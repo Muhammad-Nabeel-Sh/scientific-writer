@@ -258,3 +258,20 @@ export async function writeBibliography(content: string): Promise<void> {
   const dir = await getWorkspaceDir();
   await invoke('write_text_file', { path: `${dir}/references.bib`, content });
 }
+
+/* ── Custom math symbols ({workspace}/math-symbols.json) ── */
+
+const MATH_SYMBOLS_FILE = 'math-symbols.json';
+
+/** Contents of the workspace's math-symbols.json, or null if it has none. */
+export async function readMathSymbolsFile(): Promise<string | null> {
+  const dir = await getWorkspaceDir();
+  const path = `${dir}/${MATH_SYMBOLS_FILE}`;
+  if (!(await invoke<boolean>('file_exists', { path }))) return null;
+  return invoke<string>('read_text_file', { path });
+}
+
+export async function writeMathSymbolsFile(content: string): Promise<void> {
+  const dir = await getWorkspaceDir();
+  await invoke('write_text_file', { path: `${dir}/${MATH_SYMBOLS_FILE}`, content });
+}

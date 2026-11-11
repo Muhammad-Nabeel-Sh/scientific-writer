@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import katex from 'katex';
+  import { renderMath } from '$lib/math';
   import { sanitizeHtml } from '$lib/sanitize';
 
   export let onInsert: (latex: string) => void;
@@ -537,14 +537,7 @@
     // Pre-render all previews
     for (const cat of galleryData) {
       for (const item of cat.items) {
-        try {
-          previewCache[item.preview] = katex.renderToString(item.preview, {
-            displayMode: true,
-            throwOnError: false,
-          });
-        } catch {
-          previewCache[item.preview] = item.preview;
-        }
+        previewCache[item.preview] = renderMath(item.preview, { display: true });
       }
     }
     previewCache = previewCache;

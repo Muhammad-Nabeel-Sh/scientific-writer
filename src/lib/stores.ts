@@ -220,6 +220,13 @@ export const BACKUP_INTERVAL = 120000; // 2 minutes
 /** True while the active note's content is being read from disk; the editor is read-only meanwhile. */
 export const noteLoading = writable(false);
 
+/**
+ * Request to open the custom math symbol editor (M9). Set by the preview when
+ * the user clicks ⚠ on a formula with an undefined macro (`name` = that macro),
+ * or by a toolbar button (`name` omitted). The dialog clears it when it closes.
+ */
+export const symbolEditorRequest = writable<{ name?: string } | null>(null);
+
 export const exportStatus = writable<{ exporting: boolean; label: string; error?: string }>({
   exporting: false,
   label: '',

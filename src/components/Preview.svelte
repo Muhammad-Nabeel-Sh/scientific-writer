@@ -2,8 +2,9 @@
   import {
     noteContent, previewRef, bibEntries, citedKeys, missingCitationKeys,
     digitStyle, ligatureSettings,
-    fontSettings, kashidaConfig, hierarchy, activeNoteId,
+    fontSettings, kashidaConfig, hierarchy, activeNoteId, symbolEditorRequest,
   } from "$lib/stores";
+  import { mathRegistryVersion } from "$lib/math";
   import { renderDocument, type DigitStyle } from "$lib/markdown";
   import type { BibEntry } from "$lib/bibliography";
   import type { KashidaConfig } from "$lib/stores";
@@ -73,6 +74,7 @@
     kashida: KashidaConfig,
     resolver: (name: string) => string | null,
     wsDir: string,
+    _mathVersion: number,
   ) {
     if (renderTimer) clearTimeout(renderTimer);
     const seq = ++renderSeq;
@@ -115,7 +117,8 @@
     prevKashidaEnabled = kashida.enabled;
   }
 
-  $: scheduleRender(content, entries, $digitStyle, $kashidaConfig, linkResolver, workspaceDir);
+  // $mathRegistryVersion: re-render when custom math symbols change.
+  $: scheduleRender(content, entries, $digitStyle, $kashidaConfig, linkResolver, workspaceDir, $mathRegistryVersion);
 
   onDestroy(() => {
     if (renderTimer) clearTimeout(renderTimer);
@@ -123,6 +126,14 @@
 
   function handlePreviewClick(e: MouseEvent) {
     const target = e.target as HTMLElement;
+    // ⚠ on a formula with an undefined macro → offer to define it (M10 → M9 dialog)
+    const issue = target.closest('.sw-math-issue-macro') as HTMLElement | null;
+    if (issue) {
+      e.preventDefault();
+      const name = issue.getAttribute('data-macro');
+      if (name) $symbolEditorRequest = { name };
+      return;
+    }
     const link = target.closest('a.wiki-link-resolved') as HTMLAnchorElement | null;
     if (link) {
       e.preventDefault();

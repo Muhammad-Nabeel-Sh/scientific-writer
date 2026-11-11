@@ -17,6 +17,8 @@ export interface RenderOptions {
   bibEntries?: BibEntry[];
   digitStyle?: DigitStyle;
   labelLang?: LabelLang;
+  /** Default direction for math. 'rtl' is experimental (MathML only, see docs/rtl-math-spike.md). */
+  mathDir?: 'ltr' | 'rtl';
   /** Map a `[[wiki link]]` target name to a note id. Without it, wiki links stay literal text. */
   resolveWikiLink?: (name: string) => string | null | undefined;
 }
@@ -55,6 +57,10 @@ export interface RenderWarning {
   message: string;
   /** 0-based source line, when known. */
   line?: number;
+  /** For math warnings: 'undefined-macro' | 'parse' | 'strict'. */
+  code?: string;
+  /** For 'undefined-macro': the macro name without backslash (feeds "add as custom symbol"). */
+  macro?: string;
 }
 
 export interface RenderEnv {

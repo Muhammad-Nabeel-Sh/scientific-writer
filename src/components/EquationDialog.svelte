@@ -1,10 +1,9 @@
 <script lang="ts">
   import { createEventDispatcher, onMount } from 'svelte';
   import { noteContent } from '$lib/stores';
-  import katex from 'katex';
   import { sanitizeHtml } from '$lib/sanitize';
   import { analyzeMarkdown } from '$lib/markdown';
-  import { renderTex } from '$lib/md/math';
+  import { renderMath } from '$lib/math';
   import KatexGallery from './KatexGallery.svelte';
 
   export let insertAtCursor: (text: string) => void;
@@ -30,7 +29,7 @@
   // KaTeX call (analyzeMarkdown itself does not do KaTeX work).
   $: documentEquations = analyzeMarkdown($noteContent).equations.map((eq) => {
     const warnings: string[] = [];
-    const preview = renderTex(eq.latex, true, (message) => warnings.push(message));
+    const preview = renderMath(eq.latex, { display: true, onIssue: (i) => warnings.push(i.message) });
     return {
       number: eq.number,
       latex: eq.latex,
@@ -41,13 +40,12 @@
   });
 
   $: if (equationInput.trim()) {
-    try {
-      previewHtml = katex.renderToString(equationInput.trim(), { displayMode: true, throwOnError: false });
-      previewError = false;
-    } catch {
-      previewHtml = '<span style="color:#ff6b6b">خطأ في الصياغة</span>';
-      previewError = true;
-    }
+    let failed = false;
+    previewHtml = renderMath(equationInput.trim(), {
+      display: true,
+      onIssue: (i) => { if (i.code !== 'strict') failed = true; },
+    });
+    previewError = failed;
   } else {
     previewHtml = '<span style="color:var(--fg-muted)">سيظهر المعاينة هنا</span>';
     previewError = false;

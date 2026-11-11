@@ -402,6 +402,40 @@ html, body { height: 100%; overflow: hidden; direction: rtl; background: var(--b
 .katex { font-size: 1.1em; }
 .katex-display { margin: 1em 0; text-align: center; }
 
+/* ── Math symbols (src/lib/math) ──
+   Glyph symbols render as \htmlClass{sw-sym sw-font-<font>}{\text{…}}.
+   KaTeX sets its own font on the inner spans, so target descendants too.
+   Font choice: docs/math-fonts.md. */
+.katex .sw-font-arabicmath,
+.katex .sw-font-arabicmath * {
+  font-family: 'Amiri', 'Noto Sans Arabic', serif !important;
+  font-style: normal !important;
+}
+.katex .sw-sym { white-space: nowrap; }
+
+/* Experimental right-to-left math (MathML only, M7). The system math font
+   comes FIRST: it has the MATH table (radicals, stretchy operators) and the
+   'rtlm' mirrored forms (Cambria Math on Windows). It has no Arabic letters,
+   so those fall through to Amiri. Amiri first would drop radicals entirely. */
+.katex.sw-math-rtl { direction: rtl; }
+.katex.sw-math-rtl math { font-family: math, 'Cambria Math', 'Amiri', serif; }
+.preview .katex-display > .katex.sw-math-rtl { text-align: center; }
+
+/* ⚠ marker on formulas with problems (M10) */
+.sw-math-issue {
+  display: inline-block;
+  margin-inline-start: 0.3em;
+  color: #e37400;
+  font-size: 0.85em;
+  cursor: help;
+  vertical-align: super;
+  user-select: none;
+}
+.sw-math-issue-macro { cursor: pointer; }
+.sw-math-issue-macro:hover,
+.sw-math-issue-macro:focus-visible { color: #ff9800; outline: 1px dashed currentColor; outline-offset: 2px; }
+.preview figcaption.eq-number .sw-math-issue { vertical-align: baseline; }
+
 /* ── Classical Arabic Book Layout ── */
 
 .classical-page {

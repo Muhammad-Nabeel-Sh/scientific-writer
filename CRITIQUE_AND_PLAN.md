@@ -322,16 +322,56 @@ Depends on P2.3 and P0.3.
 
 | ID | Owner | Task | Done when |
 |---|---|---|---|
-| M1 ◐ | [CL] | **Single KaTeX instance.** Replace `@traptitech/markdown-it-katex` with an in-repo markdown-it math plugin (`src/lib/math/markdown-it-math.ts`, ~150 lines: inline `$…$`, display `$$…$$`, `\(…\)`, `\[…\]`, label `{#eq:x}`) that calls `katex-instance.ts`. Remove the duplicate `katex@0.16`. | `npm ls katex` shows one version; golden tests pass |
-| M2 | [CL] | **`katex-instance.ts`**: shared `renderMath(src, { display, dir })` with one options object: `macros` (from registry), `trust` (only `\htmlClass` with `sw-` prefix), `strict: (code) => code === 'unicodeTextInMathMode' ? 'ignore' : 'warn'` with warnings captured, `output: 'htmlAndMathml'`. All components use it. | grep shows `katex` imported only in this file |
-| M3 | [CL] | **Registry** (`registry.ts`) implementing the `MathSymbol` interface in B.3: `defineSymbol`, `getSymbols(category?)`, `searchSymbols(query)`, `toKatexMacros()`; validation rules from B.3; loader for `{workspace}/math-symbols.json`. | Unit tests: duplicate names rejected, invalid names rejected, macro expansion renders, glyph symbol produces `sw-sym` span |
+| M1 ✅ | [CL] | **Single KaTeX instance.** Replace `@traptitech/markdown-it-katex` with an in-repo markdown-it math plugin (`src/lib/math/markdown-it-math.ts`, ~150 lines: inline `$…$`, display `$$…$$`, `\(…\)`, `\[…\]`, label `{#eq:x}`) that calls `katex-instance.ts`. Remove the duplicate `katex@0.16`. | `npm ls katex` shows one version; golden tests pass |
+| M2 ✅ | [CL] | **`katex-instance.ts`**: shared `renderMath(src, { display, dir })` with one options object: `macros` (from registry), `trust` (only `\htmlClass` with `sw-` prefix), `strict: (code) => code === 'unicodeTextInMathMode' ? 'ignore' : 'warn'` with warnings captured, `output: 'htmlAndMathml'`. All components use it. | grep shows `katex` imported only in this file |
+| M3 ✅ | [CL] | **Registry** (`registry.ts`) implementing the `MathSymbol` interface in B.3: `defineSymbol`, `getSymbols(category?)`, `searchSymbols(query)`, `toKatexMacros()`; validation rules from B.3; loader for `{workspace}/math-symbols.json`. | Unit tests: duplicate names rejected, invalid names rejected, macro expansion renders, glyph symbol produces `sw-sym` span |
 | M4 | [OC] | **Populate `symbols/arabic-functions.ts`**: جا، جتا، ظا، ظتا، قا، قتا، لو، لط (ln)، نها، مجـ (sum label), plus inverse forms — each as `kind: 'macro'` using `\operatorname{\text{…}}`. Names and Arabic labels per the table in Appendix 1. | Each renders in the gallery; one test per symbol that `renderMath` produces no warnings |
 | M5 | [OC] | **Populate `symbols/arabic-alphabet.ts`**: U+1EE00–U+1EEFF letters as `kind: 'glyph'` (generate from the Unicode data file, not by hand), font class `sw-font-arabicmath`. | Generated file + generator script in `scripts/`; renders with the bundled font chosen in M6 |
-| M6 | [CL] | **Font evaluation**: pick and bundle a font that actually covers U+1EE00 block and Arabic text in math (test Noto Sans Math, XITS Math, others); write `@font-face` + `.sw-font-*` CSS; document coverage gaps. | Decision note in `docs/math-fonts.md` with screenshots |
-| M7 | [CL] | **RTL math spike** (B.4 stage 2–3): MathML `dir="rtl"` in WebView2 with the chosen font; mirrored operator fallback; LaTeX RTL-math options. Output: go/no-go note + prototype behind a flag. | `docs/rtl-math-spike.md` + reference page comparison |
+| M6 ✅ | [CL] | **Font evaluation**: pick and bundle a font that actually covers U+1EE00 block and Arabic text in math (test Noto Sans Math, XITS Math, others); write `@font-face` + `.sw-font-*` CSS; document coverage gaps. | Decision note in `docs/math-fonts.md` with screenshots |
+| M7 ✅ | [CL] | **RTL math spike** (B.4 stage 2–3): MathML `dir="rtl"` in WebView2 with the chosen font; mirrored operator fallback; LaTeX RTL-math options. Output: go/no-go note + prototype behind a flag. | `docs/rtl-math-spike.md` + reference page comparison |
 | M8 | [OC] | **Data-driven gallery**: refactor `KatexGallery.svelte` to read categories from the registry (move today's hard-coded arrays into `symbols/standard.ts` as `kind:'macro'` passthroughs); add Arabic search using `normalizeArabic`. | Gallery shows same items as before + new categories; search "جيب" finds `\jaa` |
 | M9 | [OC] | **Custom-symbol editor dialog**: form to add/edit entries in `math-symbols.json` (name, Arabic label, macro body or Unicode char, category) with live preview via `renderMath`. Arabic UI labels. | Adding a symbol makes it usable in preview without restart |
-| M10 | [CL] | **Diagnostics**: surface `warnings[]` from M2 for unknown macros/characters next to equations in preview, with "add as custom symbol" action that opens M9 prefilled. | Typing `$\foo$` shows a marker; action opens dialog |
+| M10 ✅ | [CL] | **Diagnostics**: surface `warnings[]` from M2 for unknown macros/characters next to equations in preview, with "add as custom symbol" action that opens M9 prefilled. | Typing `$\foo$` shows a marker; action opens dialog |
+
+#### Phase 3 status (2026-11-11)
+
+Claude's tasks are done: **M1, M2, M3, M10** completely, plus **M6 and M7 as decision notes with working prototypes**. opencode has **M4, M5, M8 (revised below), M9 and M11–M13**.
+
+**How it was built (read this before M4/M5/M8/M9):**
+- **`src/lib/math/` is the math layer. Import from `$lib/math`** (the index): importing it registers the built-in symbols.
+  - `katex-instance.ts` is the **only** file that imports `katex`; `grep` confirms it. `renderMath(tex, { display, dir?, digits?, onIssue? })` uses one options object:
+    - registry macros
+    - `trust` limited to `\htmlClass` with `sw-…` classes
+    - strict warnings captured, with Arabic letters and digits, the Arabic math alphabet, and `htmlExtension` ignored
+    - KaTeX's console noise about Arabic swallowed inside the call only
+
+    Problems come back as `MathIssue { code: 'undefined-macro' | 'parse' | 'strict', message, macro? }`. `isKatexCommand(name)` reports whether a name already exists in KaTeX.
+  - `registry.ts` has the `MathSymbol` type from §B.3 plus `override?`, and these functions:
+    - `validateSymbol` (Arabic error messages)
+    - `defineSymbol` / `defineSymbols(syms, 'builtin' | 'user')`, which reject duplicates and shadowing a KaTeX built-in unless `override: true`
+    - `removeSymbol`, `clearUserSymbols`, `getSymbol(s)`, `searchSymbols` (Arabic-normalised), `toKatexMacros`
+    - the `mathRegistryVersion` store; the preview re-renders when it changes
+
+    Glyph symbols expand to `\<atom>{\htmlClass{sw-sym sw-font-<font>}{\text{<char>}}}`.
+  - `user-symbols.ts`: the `{workspace}/math-symbols.json` format is `{ "version": 1, "symbols": [...] }`. It provides `parseUserSymbolsFile`, `serializeUserSymbols` and `applyUserSymbols`. A bad entry is skipped and reported; it doesn't fail the whole file.
+  - `src/lib/math-workspace.ts` provides `reloadWorkspaceSymbols()` and `saveWorkspaceSymbols(symbols)`; it's Tauri-side and uses `readMathSymbolsFile`/`writeMathSymbolsFile` in `fs.ts`. `App.init` loads the workspace's symbols on every workspace (re)init and shows a toast if there are problems.
+  - `symbols/arabic-functions.ts` has **3 seed entries** (`\jaa`, `\jataa`, `\nihaya`) and the `fn()` helper; `symbols/index.ts` lists the built-in sets.
+- **M1:** `\(…\)` inline and `\[…\]` display, with labels after `\]`, are in `md/math.ts`.
+- **M10:** a formula with problems gets a `<span class="sw-math-issue">⚠</span>`. For an undefined macro it has `data-macro`, `role=button` and `tabindex=0`. Clicking it, or pressing Enter, sets the **`symbolEditorRequest` store** (`stores.ts`) to `{ name }`. The math warnings (`RenderWarning.code` / `.macro`) are in `renderDocument().warnings`.
+- **M6** ([docs/math-fonts.md](docs/math-fonts.md)): the bundled **Amiri already covers all 143 characters of U+1EE00–1EEFF**, so glyph symbols use `.sw-font-arabicmath` → Amiri, and nothing new is bundled. Follow-up: scan XITS Math when the network is available (the evaluation ran offline).
+- **M7** ([docs/rtl-math-spike.md](docs/rtl-math-spike.md)): **GO for the preview, behind a flag.** `$$[rtl] … $$` (or `RenderOptions.mathDir: 'rtl'`) produces MathML with `dir="rtl"`. In the running app this gave a mirrored ∑ and √, `س ← ٠`, Arabic-Indic digits and a spaced `جا س`; screenshots are in `docs/images/math/`. Gaps: the operator font depends on the OS, there's no textbook comparison yet, and export isn't done.
+
+**Verified:** `npm run check` is clean, 191 tests pass (new: `math-registry.test.ts`, `math-syntax.test.ts`), and the build passes. In the running frontend: glyph rendering with Amiri, ⚠ → `symbolEditorRequest` set to `{ name }`, and the RTL screenshots.
+
+| ID | Owner | Task | Done when |
+|---|---|---|---|
+| M4 | [OC] | (as above) Finish `symbols/arabic-functions.ts` using the existing `fn(name, ar, labelAr, keywords, limits?)` helper: `ظا ظتا قا قتا لو لط مجـ` and the inverse forms (`جا^{-1}` style: `\jaainv` → `\operatorname{\text{جا}}^{-1}`). Use the Appendix 1 names. `\majmu` and `\nihaya` take `limits=true`. | One test per symbol: `renderMath` reports **no issues** and the HTML contains the Arabic name |
+| M5 | [OC] | (as above) `scripts/gen-arabic-alphabet.mjs` reads `UnicodeData.txt` (commit a copy under `scripts/data/`; don't download it at runtime) and writes `symbols/arabic-alphabet.ts`: one glyph symbol per assigned U+1EE00–1EEFF char, with `font: 'arabicmath'`, `atom: 'mathord'`, `unicode`, and `latex.body` set to the char. Names: `ar` + a variant prefix (`Init`, `Tail`, `Stretch`, `Loop`, `DoubleStruck`; none for the plain isolated form) + the letter's transliteration (`arAlef`, `arInitBeh`, `arDoubleStruckJeem` …). Register it in `symbols/index.ts`. | 143 symbols, all pass `validateSymbol`; a test renders 5 of them with no issues |
+| M8 | [OC] | **Revised:** do **not** put the KaTeX built-ins (`\frac`, `\alpha` …) into the registry. It rejects shadowing built-ins, and `\frac → \frac` would be self-referential. Instead, move today's hard-coded arrays from `KatexGallery.svelte` into a plain data file `src/lib/math/katex-catalog.ts` (same `{latex, preview, code}` shape, Arabic category labels). The gallery shows those categories **plus** one category per registry `SymbolCategory` from `getSymbols()`, which re-renders on `$mathRegistryVersion`. Add a search box using `searchSymbols()` for registry items and `normalizeArabic` for catalog labels. | Same catalog items as before plus registry categories; searching "جيب" finds `\jaa` |
+| M9 | [OC] | (as above) `SymbolEditorDialog.svelte`, mounted in `App.svelte`. **It opens when `$symbolEditorRequest` is non-null** (prefill `name` from it) and **sets it to `null` on close.** Fields: name, Arabic label, keywords, category, kind (macro body or Unicode char + atom), LaTeX body. Live preview via `renderMath`, and validation via `validateSymbol` before saving. Save with `saveWorkspaceSymbols([...existingUserSymbols, sym])`; existing user symbols come from `getSymbols().filter(s => getSymbolSource(s.name) === 'user')`. Also add a toolbar button that sets `$symbolEditorRequest = {}`. | Clicking ⚠ on `$\foo$` opens the dialog with "foo" filled in; after saving, the preview re-renders without ⚠ and `math-symbols.json` holds the symbol |
+| M11 | [OC] | Docs: in AGENTS.md add `src/lib/math/` to the layout and two conventions: "import math only from `$lib/math`; never import `katex` elsewhere" and "custom symbols go through the registry (validateSymbol)". Mention `$$[rtl]` as experimental in the user-facing help or template text, if a help page exists. | — |
+| M12 | [OC] | `EquationDialog.svelte`: show `MathIssue` codes. For `undefined-macro`, add a "تعريف الرمز" button that sets `$symbolEditorRequest = { name }` (same flow as the ⚠ in the preview). | Button opens M9 prefilled |
+| M13 | [OC] | Add `[rtl]` / `[ltr]` toggle buttons (or a checkbox "اتجاه عربي") to `EquationDialog` that insert `$$[rtl]` instead of `$$`. The live preview uses `renderMath(..., { dir })`. | Inserted equation renders RTL in the preview |
 
 ### Phase 4 — Exporters
 
