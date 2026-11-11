@@ -1,9 +1,9 @@
 <script lang="ts">
   import { createEventDispatcher, onMount } from 'svelte';
-  import { noteContent } from '$lib/stores';
+  import { noteContent, symbolEditorRequest } from '$lib/stores';
   import { sanitizeHtml } from '$lib/sanitize';
   import { analyzeMarkdown } from '$lib/markdown';
-  import { renderMath, buildEquationSnippet, labelError, type EquationDir } from '$lib/math';
+  import { renderMath, buildEquationSnippet, labelError, type EquationDir, type MathIssue } from '$lib/math';
   import KatexGallery from './KatexGallery.svelte';
   import ArabicSymbolGallery from './ArabicSymbolGallery.svelte';
 
@@ -16,7 +16,7 @@
     latex: string;
     preview: string;
     label?: string;
-    warnings: string[];
+    issues: MathIssue[];
   }
 
   let equationInput = '';
@@ -49,14 +49,14 @@
   // uses. Warnings are produced by rendering each equation with the shared
   // KaTeX call (analyzeMarkdown itself does not do KaTeX work).
   $: documentEquations = analyzeMarkdown($noteContent).equations.map((eq) => {
-    const warnings: string[] = [];
-    const preview = renderMath(eq.latex, { display: true, onIssue: (i) => warnings.push(i.message) });
+    const issues: MathIssue[] = [];
+    const preview = renderMath(eq.latex, { display: true, onIssue: (i) => issues.push(i) });
     return {
       number: eq.number,
       latex: eq.latex,
       preview,
       label: eq.label,
-      warnings,
+      issues,
     };
   });
 
@@ -79,6 +79,13 @@
 
   function citeEquation(eq: DocEquation) {
     insertAtCursor(`[ref:eq:${eq.label ?? eq.number}]`);
+    dispatch('close');
+  }
+
+  /** Open the custom-symbol editor prefilled with an undefined macro from the document. */
+  function addSymbolFor(issue: MathIssue) {
+    if (!issue.macro) return;
+    $symbolEditorRequest = { name: issue.macro };
     dispatch('close');
   }
 
@@ -212,10 +219,17 @@
                   {#if eq.label}
                     <div class="eq-item-label">#eq:{eq.label}</div>
                   {/if}
-                  {#if eq.warnings.length > 0}
+                  {#if eq.issues.length > 0}
                     <div class="eq-item-warnings" dir="rtl">
-                      {#each eq.warnings as warning}
-                        <span class="eq-warning">⚠ {warning}</span>
+                      {#each eq.issues as issue}
+                        <div class="eq-issue">
+                          <span class="eq-warning">⚠ {issue.code}: {issue.message}</span>
+                          {#if issue.code === 'undefined-macro' && issue.macro}
+                            <button class="btn-symbol" on:click={() => addSymbolFor(issue)}>
+                              إضافة رمز
+                            </button>
+                          {/if}
+                        </div>
                       {/each}
                     </div>
                   {/if}
@@ -516,6 +530,27 @@
   .eq-warning {
     font-size: 0.72rem;
     color: #f0c674;
+  }
+  .eq-issue {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .btn-symbol {
+    background: #3a3a3a;
+    border: 1px solid var(--border);
+    color: var(--fg);
+    cursor: pointer;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 0.7rem;
+    white-space: nowrap;
+  }
+  .btn-symbol:hover {
+    border-color: var(--accent);
+    color: var(--accent);
   }
   .eq-item-number {
     flex-shrink: 0;
