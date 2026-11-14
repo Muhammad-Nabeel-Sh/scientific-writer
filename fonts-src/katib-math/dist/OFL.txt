@@ -5,7 +5,7 @@ Copyright (c) 2014, 2015, (URW)++ Design & Development.
 Copyright (c) 2009-2019, Khaled Hosny.
 Copyright (c) 2019, Daniel Benjamin Miller.
 Copyright 2010-2022 The Amiri Project Authors (https://github.com/aliftype/amiri).
-Katib Math modifications Copyright (c) 2026, Muhammmad Nabeel.
+Katib Math modifications Copyright (c) 2026, Muhammad Nabeel Shaesha.
 
 This Font Software is licensed under the SIL Open Font License, Version 1.1.
 This license is copied below, and is also available with a FAQ at:

@@ -1,5 +1,6 @@
 import type MarkdownIt from 'markdown-it';
 import footnote from 'markdown-it-footnote';
+import { formatNumber } from './md/env';
 
 export function footnotePlugin(md: MarkdownIt): void {
   md.use(footnote);
@@ -45,7 +46,7 @@ export function footnotePlugin(md: MarkdownIt): void {
       title = ` title="${md.utils.escapeHtml(raw)}"`;
     }
 
-    return `<sup class="footnote-ref" id="fnref${refAnchor}"><a href="#fn${num}"${title}>${num}</a></sup>`;
+    return `<sup class="footnote-ref" id="fnref${refAnchor}"><a href="#fn${num}"${title}>${formatNumber(env, num)}</a></sup>`;
   };
 
   md.renderer.rules.footnote_open = (tokens, idx, options, env, slf) => {
@@ -61,7 +62,8 @@ export function footnotePlugin(md: MarkdownIt): void {
   };
 
   md.renderer.rules.footnote_block_open = (tokens, idx, options, env, slf) => {
-    return '<hr class="footnotes-sep">\n<section class="footnotes">\n<ol class="footnotes-list">\n';
+    const cls = env?.arabicNumbers ? 'footnotes-list sw-num-ai' : 'footnotes-list';
+    return `<hr class="footnotes-sep">\n<section class="footnotes">\n<ol class="${cls}">\n`;
   };
 
   md.renderer.rules.footnote_block_close = (tokens, idx, options, env, slf) => {

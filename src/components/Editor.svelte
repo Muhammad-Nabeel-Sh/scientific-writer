@@ -30,6 +30,7 @@
   import SpellCheckDialog from "./SpellCheckDialog.svelte";
   import TableEditor from "./TableEditor.svelte";
   import { extractTableAt, tableToMarkdown } from "$lib/table-utils";
+  import { continueList } from "$lib/list-continuation";
 
   import TypographySettings from "./TypographySettings.svelte";
 
@@ -355,6 +356,24 @@
   }
 
   function handleKeydown(e: KeyboardEvent) {
+    // Enter in a list item starts the next item (or ends the list on an empty one).
+    if (
+      e.key === "Enter" &&
+      !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey &&
+      !e.isComposing
+    ) {
+      const ta = textareaRef;
+      const edit = continueList(ta.value, ta.selectionStart, ta.selectionEnd);
+      if (edit) {
+        e.preventDefault();
+        pushHistory();
+        ta.value = edit.value;
+        ta.selectionStart = ta.selectionEnd = edit.cursor;
+        ta.dispatchEvent(new Event("input", { bubbles: true }));
+        return;
+      }
+    }
+
     // Check customizable bindings first
     if (activeBindings.length > 0) {
       const cmd = matchBinding(e);

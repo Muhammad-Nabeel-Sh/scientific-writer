@@ -11,7 +11,8 @@
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "test": "vitest run",
     "test:watch": "vitest",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "ctan:build": "vite-node -c scripts/vite.config.ts scripts/build-ctan-package.ts"
   },
   "license": "MIT",
   "dependencies": {

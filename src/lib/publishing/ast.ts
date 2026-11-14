@@ -204,6 +204,8 @@ export interface MathBlockNode {
   label?: string;
   id?: string;
   number?: number;
+  /** 'rtl' for `$$[rtl]` equations (Arabic notation). */
+  dir?: 'ltr' | 'rtl';
 }
 
 export interface FootnoteDefinitionNode {

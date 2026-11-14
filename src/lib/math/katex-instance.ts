@@ -127,13 +127,25 @@ export function renderMath(tex: string, opts: MathRenderOptions): string {
  * `mathvariant="normal"` keeps a single-character <mi> upright.
  */
 export function unwrapTokenText(html: string): string {
-  return html.replace(
-    /<(mi|mo|mn)((?:\s[^>]*)?)><mtext>([^<]*)<\/mtext><\/\1>/g,
-    (_m, tag: string, attrs: string, text: string) =>
-      tag === 'mi' && !/mathvariant=/.test(attrs)
-        ? `<mi${attrs} mathvariant="normal">${text}</mi>`
-        : `<${tag}${attrs}>${text}</${tag}>`,
-  );
+  // Also covers \mathop{…}/\mathrel{…} around a single operator (the mirrored
+  // \rint, \rpropto …), which KaTeX writes as <mo><mo>∫</mo></mo>, and
+  // \textbf{…} inside \mathord (<mi><mtext mathvariant="bold">). The HTML
+  // parser reads the inner token as an unknown HTML element, which
+  // DOMPurify removes, so these symbols vanished from MathML-only output.
+  const nested = /<(mi|mo|mn)((?:\s[^>]*)?)><(mi|mo|mn|mtext)((?:\s[^>]*)?)>([^<]*)<\/\3><\/\1>/g;
+  let out = html;
+  for (let prev = ''; prev !== out; ) {
+    prev = out;
+    out = out.replace(nested, (_m, tag: string, outer: string, _inner: string, innerAttrs: string, text: string) => {
+      let attrs = outer;
+      for (const [, name, value] of innerAttrs.matchAll(/\s([a-z-]+)="([^"]*)"/g)) {
+        if (!new RegExp(`\\s${name}=`).test(attrs)) attrs += ` ${name}="${value}"`;
+      }
+      if (tag === 'mi' && !/mathvariant=/.test(attrs)) attrs += ' mathvariant="normal"';
+      return `<${tag}${attrs}>${text}</${tag}>`;
+    });
+  }
+  return out;
 }
 
 const ARABIC_CLASS =

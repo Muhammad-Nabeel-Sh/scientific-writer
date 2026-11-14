@@ -105,6 +105,8 @@ html, body { height: 100%; overflow: hidden; direction: rtl; background: var(--b
 .preview [dir] { text-align: start; }
 .preview :is(pre, table) { direction: ltr; }
 .preview :is(ul, ol) { direction: auto; unicode-bidi: plaintext; }
+/* Arabic-Indic list markers (١. ٢. …) when the document's digit style is Arabic (md/env.ts formatNumber) */
+.preview ol.sw-num-ai { list-style-type: arabic-indic; }
 .preview-header {
   display: flex;
   justify-content: flex-end;

@@ -237,7 +237,14 @@ function blocks(c: Cursor, close?: string): BlockNode[] {
 
       case 'math_block': {
         const eq = t.meta?.equation as { id: string; number: number } | undefined;
-        out.push({ type: 'mathBlock', value: t.content.trim(), label: t.meta?.label, id: eq?.id, number: eq?.number });
+        out.push({
+          type: 'mathBlock',
+          value: t.content.trim(),
+          label: t.meta?.label,
+          id: eq?.id,
+          number: eq?.number,
+          ...(t.meta?.dir ? { dir: t.meta.dir } : {}),
+        });
         break;
       }
 

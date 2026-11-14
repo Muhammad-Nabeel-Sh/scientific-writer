@@ -21,7 +21,7 @@ import type StateInline from 'markdown-it/lib/rules_inline/state_inline.mjs';
 import type StateBlock from 'markdown-it/lib/rules_block/state_block.mjs';
 import type Token from 'markdown-it/lib/token.mjs';
 import { renderMath, type MathIssue } from '../math';
-import { escapeHtml, type RenderEnv } from './env';
+import { escapeHtml, formatNumber, type RenderEnv } from './env';
 
 const LABEL_RE = /^\s*\{#eq:([^\s{}]+)\}\s*$/;
 
@@ -227,6 +227,6 @@ export function mathPlugin(md: MarkdownIt): void {
     const html = `<p class="katex-block">${math}</p>`;
     const eq = t.meta?.equation as { id: string; number: number } | undefined;
     if (!eq) return html + marker + '\n';
-    return `<figure class="equation-figure" id="${escapeHtml(eq.id)}">${html}<figcaption class="eq-number">(${eq.number})${marker}</figcaption></figure>\n`;
+    return `<figure class="equation-figure" id="${escapeHtml(eq.id)}">${html}<figcaption class="eq-number">(${formatNumber(env, eq.number)})${marker}</figcaption></figure>\n`;
   };
 }

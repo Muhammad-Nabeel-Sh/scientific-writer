@@ -409,14 +409,56 @@ Claude's tasks are done: **M1, M2, M3, M10** completely, plus **M6 and M7 as dec
 |---|---|---|---|
 | E1 ✅ | [OC] | **Fix `escapeLatex`**: `\`→`\textbackslash{}`, `~`→`\textasciitilde{}`, `^`→`\textasciicircum{}`; others as now. Unit tests. | Tests pass |
 | E2 ✅ | [OC] | **LaTeX preamble**: add `amsmath, amssymb, mathtools`, `unicode-math` (XeLaTeX branch) with **`\setmathfont{KatibMath-Regular.otf}`** (ship `fonts-src/katib-math/dist/KatibMath-Regular.otf` next to the exported `.tex`, or point `Path=` at it), configurable Arabic text font with cross-platform default (Amiri), `numerals` from the app's digit-style setting; emit `\label{eq:x}` and `\eqref{eq:x}` for refs. | Exported `Examples` project compiles with `xelatex` (document the command) |
-| E3 | [CL] | **Registry → LaTeX** (`to-latex.ts`): collect only symbols used in the document, emit `\usepackage`s and `\newcommand`s into the preamble. Language switching for LTR blocks inside RTL docs (`\begin{english}`/`\textenglish`). | A doc using M4/M5 symbols compiles |
-| E4 | [CL] | **Typst math**: use the `mitex` Typst package to render LaTeX math (emit `#import "@preview/mitex:…": *` and `#mitex(`…`)`/`#mi(`…`)`), registry macros passed as mitex definitions; fix the invalid numbered-block syntax. | Exported `.typ` compiles with `typst compile` |
+| E3 ✅ | [CL] | **Done and compile-verified with Tectonic 0.17 (XeTeX)**; see status below. **Registry → LaTeX** (`to-latex.ts`): collect only symbols used in the document, emit `\usepackage`s and `\newcommand`s into the preamble. Language switching for LTR blocks inside RTL docs (`\begin{english}`/`\textenglish`). | A doc using M4/M5 symbols compiles |
+| E4 ✅ | [CL] | **Typst math**: use the `mitex` Typst package to render LaTeX math (emit `#import "@preview/mitex:…": *` and `#mitex(`…`)`/`#mi(`…`)`), registry macros passed as mitex definitions; fix the invalid numbered-block syntax. | Exported `.typ` compiles with `typst compile` |
 | E5 ✅ | [OC] | **DOCX via Pandoc**: pass `-f markdown+latex_macros+tex_math_dollars`, `-M lang=ar`, `-M dir=rtl` (when RTL), a bundled `reference.docx` with Arabic styles (Amiri, RTL paragraphs), and prepend the registry `\newcommand` header from `to-pandoc.ts`. Convert app-specific syntax to Pandoc syntax first (from the AST, P2.1, not from raw markdown). | Word opens the file with RTL paragraphs and editable equations |
 | E6 ✅ | [OC] | Cross-platform Pandoc lookup (`pandoc` / `pandoc.exe`), clear Arabic error when missing. | — |
 
 #### Phase 4 status (2026-11-12)
 
-opencode's **E1, E2, E5 and E6 are done**; E3/E4 (Claude) remain.
+**Phase 4 is complete.** opencode did E1, E2, E5 and E6. Claude's **E3 and E4 are done and both compile-verified** (2026-11-14, details below).
+
+**E3/E4 (Claude, 2026-11-14):**
+- **Shared macro layer** `src/lib/math/tex-macros.ts`, used by LaTeX, Typst and Pandoc:
+  - `collectUsedSymbols()` finds the registry symbols a document uses, *transitively* and in dependency order (`\arReals` brings `\arDsHah`)
+  - `expandMacros()` expands them recursively, keeping operators as operators (`\rsum_{…}` keeps its limits)
+  - helpers `stripHtmlClass`, `unwrapCommand`, `closingBrace`
+
+  This also fixed **DOCX**: `to-pandoc.ts` expanded only one level and missed symbols used inside other symbols.
+- **E3** `src/lib/math/to-latex.ts`:
+  - `latexSymbolSetup()` defines only the used symbols with `\DeclareRobustCommand`, plus a `\swmirror` helper (`\mathpalette` + `\reflectbox`, so mirrored big operators keep their size and limits) and the packages they need
+  - `textModeArabic()` puts `\textarabic` inside `\text{}` in math
+  - `arabicInMathForLatex()` wraps Arabic in formulas
+  - Symbol fixes: mirrored operators' LaTeX is now `\swmirror{…}` (`\reflectbox{\sum}` would not compile), and `\arComplex` no longer contains KaTeX's `\htmlClass`.
+- **LaTeX exporter** (`latex-exporter.ts`):
+  - XeLaTeX whenever the document is RTL, contains Arabic, or uses registry symbols; pure-Latin documents stay on pdfLaTeX
+  - polyglossia main and other language from the document. Latin passages in Arabic documents get `\textenglish`, whole Latin paragraphs the `english` environment, and the reverse for English documents.
+  - code always left-to-right
+  - `amssymb` dropped under `unicode-math`
+  - `[ref:eq:N]` to a *labelled* equation now resolves to its label (it used to dangle)
+  - inline `\footnote{}`; unknown `listings` languages omitted (they stopped compilation)
+  - Arabic academic-block labels (نظرية 1); figures and tables as floats with captions; title via `\maketitle` without repeating the H1
+  - `$$[rtl]` equations carry a comment (LaTeX has no RTL math)
+- **E4** `typst-exporter.ts`, rewritten on **mitex 0.2.7**:
+  - math via `#mitex()` / `#mi()` with registry macros pre-expanded (glyphs → their Unicode characters, drawn by Katib Math)
+  - numbered equations labelled `<eq:label>` / `<eq-N>` and real `@` references
+  - Arabic documents number on the left with `(١)`
+  - math forced LTR inside Arabic paragraphs, and Latin citations and references in LTR boxes
+  - inline `#footnote[]`, `table.header`, `#quote`, `#raw`, a poetry grid, academic blocks with the bar on the start side, and a references section
+  - the old invalid `$x $ (1)$` and bibliography-dictionary syntax are gone
+- **Document language**: `parseDocument()` now detects `lang`/`direction` from the prose (Arabic letters ≥ Latin → `ar`). Previously only the export button forced RTL on everything. `MathBlockNode.dir` carries `[rtl]`.
+- **Verified:** **all six exports compile with the real Typst compiler** (typst-py 0.15.2, `mitex` fetched from Typst Universe, fonts Katib Math + Amiri): a demanding Arabic sample, four fixtures, and an English document with Arabic math. I checked the rendered page visually; that check found and fixed the left/right placement of equation numbers, citation bidi and the block-bar side. `exporters-phase4.test.ts` (18 tests) covers macro collection and expansion, the LaTeX setup, **structural validity of every exported `.tex`** (balanced environments and braces), language switching, refs, the Typst output and Pandoc transitivity. 267 tests pass.
+- **LaTeX compile-verified with Tectonic 0.17 (XeTeX engine).** All six exports compile with **0 errors and 0 missing characters**: the Arabic sample, four fixtures, and the English document with Arabic math. I checked the rendered PDFs visually:
+  - mirrored ∑ and √ with upright limits, and double-struck Arabic letters
+  - equation numbers `(١)` on the left, `نظرية 1`, footnotes, references, the table, LTR code and poetry
+
+  The compiles found four bugs, all fixed with regression tests:
+  1. **The Arabic math alphabet went missing in XeLaTeX.** `unicode-math` does not map U+1EE00–1EEFF, so XeTeX looked in Computer Modern ("Missing character … cmmi12"). Glyph symbols are now `\mathord{\text{\swmathglyphs 𞺡}}`, with `\swmathglyphs` = Katib Math as a text font.
+  2. **`\texttt{\textenglish{…}}` in Arabic stopped compilation** (polyglossia: the mono font has no Arabic). It is now `\textenglish{\texttt{…}}`, language first. `\lstset` sets a monospace font with no visible-space marks.
+  3. **Fences holding Arabic prose** (common in classical notes) went through `listings`, which cannot shape Arabic, and the mono font has no Arabic. They are now Arabic quote blocks with their line breaks.
+  4. **Section numbering started at 0.1** when the only H1 became the title. Headings now shift up one level (`publishing/title.ts`, shared with Typst). With Arabic-Indic numerals, section numbers use `-` (`١-١`), because the Arabic zero ٠ is a dot and `١.١` reads as ١٠١.
+- **How to re-check:** use Tectonic (official release, a single executable). For a test copy without Amiri installed, point `\setmainfont`/`\arabicfont` at the Amiri `.ttf` files with `Path=./`. Typst: `pip install typst` into `fonts-src/.venv` with `--font-path` to `fonts-src/katib-math/dist` and the Amiri files.
+- **Known limits (by design):** Typst and LaTeX have no RTL math, so `[rtl]` equations export left-to-right with a note. Typst exports mirrored operators unmirrored, because mitex cannot flip glyphs. Word gets them unmirrored too.
 
 - **E1:** `escapeLatex` is a single-pass map (`\textbackslash{}`, `\textasciitilde{}`, `\textasciicircum{}`; the rest `\{ \} \& \% \$ \# \_`). Tests in `latex-export.test.ts`.
 - **E2:** `buildLatexPreamble()` adds `amsmath`, `amssymb`, `mathtools`; for RTL it adds `fontspec` + `unicode-math` + `polyglossia`, `\setmainfont`/`\newfontfamily` for the configured Arabic font (default Amiri) and `\setmathfont[Path=./]{KatibMath-Regular.otf}`. `numerals` comes from `meta.digitStyle` (`eastern`→mashriq, `western`→maghrib, `auto`→document direction). Math blocks emit `\label{eq:…}` (explicit label or number) and refs emit `\eqref{eq:…}`. `HierarchyTree.exportAs` passes `digitStyle` and the typography font into the model. Compile command documented in `docs/math-fonts.md`. **XeLaTeX is not installed on this machine**, so the compile itself was not run.

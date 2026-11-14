@@ -6,7 +6,7 @@
  */
 import type { BibEntry } from '../bibliography';
 import { parse } from '../md/parser';
-import type { DocumentMeta, DocumentModel, InlineNode } from './ast';
+import type { BlockNode, DocumentMeta, DocumentModel, InlineNode } from './ast';
 import { tokensToBlocks } from './from-tokens';
 
 function plainText(nodes: InlineNode[]): string {
@@ -19,6 +19,33 @@ function plainText(nodes: InlineNode[]): string {
     .join('');
 }
 
+const ARABIC_LETTER = /[؀-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿]/g;
+const LATIN_LETTER = /[A-Za-zÀ-ɏ]/g;
+
+/** All prose text of the document (not code or math), for language detection. */
+function proseText(blocks: BlockNode[]): string {
+  let s = '';
+  const walk = (b: BlockNode) => {
+    if ('children' in b && Array.isArray(b.children)) {
+      if (b.type === 'heading' || b.type === 'paragraph') s += plainText(b.children as InlineNode[]) + ' ';
+      else for (const c of b.children as BlockNode[]) walk(c);
+    }
+    if (b.type === 'list') for (const it of b.items) for (const c of it.children) walk(c);
+    if (b.type === 'table') for (const r of [...b.header, ...b.body]) for (const c of r.cells) s += plainText(c.children) + ' ';
+    if (b.type === 'poetry') for (const v of b.verses) s += `${v.sadr} ${v.ajuz ?? ''} `;
+  };
+  blocks.forEach(walk);
+  return s;
+}
+
+/** 'ar' when Arabic letters are at least as frequent as Latin ones (an Arabic-first app). */
+export function detectLanguage(blocks: BlockNode[]): 'ar' | 'en' {
+  const text = proseText(blocks);
+  const ar = text.match(ARABIC_LETTER)?.length ?? 0;
+  const lat = text.match(LATIN_LETTER)?.length ?? 0;
+  return ar >= lat || (ar === 0 && lat === 0) ? 'ar' : 'en';
+}
+
 export function parseDocument(markdown: string, bibEntries: BibEntry[] = []): DocumentModel {
   // Exporters receive the author's digits unchanged; numeral style is an output decision.
   const { tokens, env } = parse(markdown, { bibEntries, digitStyle: 'western' });
@@ -27,6 +54,9 @@ export function parseDocument(markdown: string, bibEntries: BibEntry[] = []): Do
   const meta: DocumentMeta = {};
   const first = blocks[0];
   if (first?.type === 'heading' && first.level === 1) meta.title = plainText(first.children);
+  const lang = detectLanguage(blocks);
+  meta.lang = lang;
+  meta.direction = lang === 'ar' ? 'rtl' : 'ltr';
 
   return {
     meta,

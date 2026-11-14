@@ -33,8 +33,9 @@ function mirrored(
     keywords: [...keywords, 'معكوس', 'mirrored', 'reversed'],
     arity,
     katex: { kind: 'macro', body },
-    // LaTeX export (Phase 4): \reflectbox from graphicx gives the same flip.
-    latex: { body: body.replaceAll('\\htmlClass{sw-mirror}', '\\reflectbox'), packages: ['graphicx'] },
+    // LaTeX export: \swmirror (defined by to-latex.ts with \mathpalette + \reflectbox)
+    // flips without leaving math mode, so big operators keep their size and limits.
+    latex: { body: body.replaceAll('\\htmlClass{sw-mirror}', '\\swmirror'), packages: ['graphicx'] },
     mirrorInRtl: true,
   };
 }
@@ -85,14 +86,14 @@ export const ARABIC_SIGNS: MathSymbol[] = [
   sign('arPerTenThousand', 0x060a, 'في العشرة آلاف ؊', ['في العشرة آلاف', 'per ten thousand', '‱'], 'mathord'),
 ];
 
-function numberSet(name: string, body: string, labelAr: string, keywords: string[]): MathSymbol {
+function numberSet(name: string, body: string, labelAr: string, keywords: string[], latexBody = body): MathSymbol {
   return {
     name,
     category: 'misc',
     labelAr,
     keywords: [...keywords, 'مجموعة', 'أعداد', 'number set'],
     katex: { kind: 'macro', body },
-    latex: { body },
+    latex: { body: latexBody },
   };
 }
 
@@ -106,5 +107,6 @@ export const NUMBER_SETS: MathSymbol[] = [
     '\\mathord{\\htmlClass{sw-sym sw-font-arabicmath}{\\textbf{ك}}}',
     'الأعداد المركّبة ك',
     ['مركبة', 'عقدية', 'complex', 'ℂ'],
+    '\\mathord{\\text{\\textbf{\\textarabic{ك}}}}',
   ),
 ];

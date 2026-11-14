@@ -12,7 +12,7 @@ exports[`renderMarkdown golden snapshots > renders classical-book-intro.md 1`] =
 <p dir="auto">هذا نموذج لتخطيط الكتب التراثية العربية، حيث يظهر المتن (النص الأصلي) في الوسط، والشرح حوله، والحواشي على الهوامش. كما تظهر التعليقات بين السطور (التعليق بين السطور) وهي طريقة شائعة في كتب التفسير والنحو.</p>
 <h3 dir="auto">عناصر التخطيط التراثي</h3>
 <figure class="table-figure" id="tbl-1">
-<figcaption dir="auto">جدول 1</figcaption>
+<figcaption dir="auto">جدول ١</figcaption>
 <table dir="rtl">
 <thead>
 <tr>
@@ -46,7 +46,7 @@ exports[`renderMarkdown golden snapshots > renders classical-book-intro.md 1`] =
 </table>
 </figure>
 <h3 dir="auto">كيفية الاستخدام</h3>
-<ol dir="rtl">
+<ol dir="rtl" class="sw-num-ai">
 <li dir="auto">استخدم <code>:::matn</code> للنص الأصلي</li>
 <li dir="auto">استخدم <code>:::sharh</code> للشرح</li>
 <li dir="auto">استخدم <code>:::hashiyah</code> للحواشي</li>
@@ -155,13 +155,13 @@ exports[`renderMarkdown golden snapshots > renders classical-sharh-salah.md 1`] 
 <p dir="auto">الصلاة واجبة على كل مسلم بالغ عاقل بالإجماع. قال الله تعالى: {فويل للمصلين الذين هم عن صلاتهم ساهون} وقال {حافظوا على الصلوات والصلاة الوسطى}.</p>
 <h3 dir="auto">شروط الصلاة</h3>
 <p dir="auto">شروط الصلاة هي ما تتوقف عليها صحة الصلاة من كونها قبل الدخول فيها، وتنقسم إلى:</p>
-<ol dir="rtl">
+<ol dir="rtl" class="sw-num-ai">
 <li dir="auto"><strong>شروط وجوب</strong>: الإسلام، والبلوغ، والعقل.</li>
 <li dir="auto"><strong>شروط صحة</strong>: الطهارة من الحدث والنجس، وستر العورة، ودخول الوقت، واستقبال القبلة.</li>
 </ol>
 <h3 dir="auto">أركان الصلاة</h3>
 <p dir="auto">أركان الصلاة أربعة عشر كما تقدم:</p>
-<ol dir="rtl">
+<ol dir="rtl" class="sw-num-ai">
 <li dir="auto">القيام مع القدرة</li>
 <li dir="auto">تكبيرة الإحرام</li>
 <li dir="auto">قراءة الفاتحة</li>
@@ -201,7 +201,7 @@ exports[`renderMarkdown golden snapshots > renders classical-sharh-taharah.md 1`
 <p dir="auto">والطهارة شرعاً: رفع ما يمنع الصلاة من حدث أو نجس. وتكون بالماء الطهور أو بالتراب في حال عدم وجود الماء أو العجز عن استعماله.</p>
 <h3 dir="auto">أنواع المياه</h3>
 <p dir="auto">المياه التي يصح التطهر بها هي:</p>
-<ol dir="rtl">
+<ol dir="rtl" class="sw-num-ai">
 <li dir="auto"><strong>الماء الطهور</strong>: هو الباقي على خلقته، وهو طاهر في نفسه مطهر لغيره.</li>
 <li dir="auto"><strong>الماء الطاهر</strong>: هو الذي تغير لونه أو طعمه أو ريحه بشيء طاهر، فهو طاهر في نفسه غير مطهر لغيره.</li>
 <li dir="auto"><strong>الماء النجس</strong>: هو الذي تغير بشيء نجس، فلا يصح التطهر به.</li>
@@ -239,7 +239,7 @@ iterations = st.sidebar.slider(
 <li dir="auto">يمكن الرجوع إلى</li>
 </ul>
 <figure class="table-figure" id="tbl-1">
-<figcaption dir="auto">جدول 1</figcaption>
+<figcaption dir="auto">جدول ١</figcaption>
 <table dir="rtl">
 <thead>
 <tr>
@@ -295,7 +295,7 @@ iterations = st.sidebar.slider(
 <li dir="auto">يمكن الرجوع إلى</li>
 </ul>
 <figure class="table-figure" id="tbl-1">
-<figcaption dir="auto">جدول 1</figcaption>
+<figcaption dir="auto">جدول ١</figcaption>
 <table dir="rtl">
 <thead>
 <tr>

@@ -1,7 +1,7 @@
 import type MarkdownIt from 'markdown-it';
 import container from 'markdown-it-container';
 import type StateCore from 'markdown-it/lib/rules_core/state_core.mjs';
-import type { RenderEnv } from './md/env';
+import { formatNumber, type RenderEnv } from './md/env';
 
 export type Language = 'en' | 'ar';
 
@@ -84,10 +84,10 @@ interface AcademicMeta {
 }
 
 /** "Theorem 2" / "ملاحظة" for a reference to a block, or null for unknown types. */
-export function blockRefText(type: string, num: number): string | null {
+export function blockRefText(type: string, num: number | string, lang: Language = currentLang): string | null {
   const config = registry.get(type);
   if (!config) return null;
-  const labelText = config.labels[currentLang];
+  const labelText = config.labels[lang];
   return config.numbered ? `${labelText} ${num}` : labelText;
 }
 
@@ -133,12 +133,12 @@ export function academicBlocksPlugin(md: MarkdownIt): void {
       const { rawType } = splitInfo(params);
       return rawType !== '' && !CLASSICAL_CONTAINERS.has(rawType);
     },
-    render(tokens: any[], idx: number): string {
+    render(tokens: any[], idx: number, _options: unknown, env: RenderEnv): string {
       const token = tokens[idx];
       if (token.nesting !== 1) return `</details>\n</figure>\n`;
       const a: AcademicMeta | undefined = token.meta?.academic;
       if (!a) return `<figure class="academic-block">\n<details open>\n<summary></summary>\n`;
-      const labelHtml = a.numbered ? `${md.utils.escapeHtml(a.labelText)} ${a.number}` : md.utils.escapeHtml(a.labelText);
+      const labelHtml = a.numbered ? `${md.utils.escapeHtml(a.labelText)} ${formatNumber(env, a.number)}` : md.utils.escapeHtml(a.labelText);
       const titleHtml = a.title ? ` <span class="block-title">${md.utils.escapeHtml(a.title)}</span>` : '';
       return `<figure class="academic-block ${md.utils.escapeHtml(a.type)}" id="${md.utils.escapeHtml(a.id)}" dir="${a.dir}">\n<details open>\n<summary><span class="block-label">${labelHtml}</span>${titleHtml}</summary>\n`;
     },

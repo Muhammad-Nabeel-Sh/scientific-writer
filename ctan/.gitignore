@@ -1,0 +1,5 @@
+# Built for the CTAN upload (see ctan/README.md)
+dist/
+# Copied from fonts-src/katib-math/dist by npm run ctan:build
+katibmath/KatibMath-Regular.otf
+katibmath/OFL.txt

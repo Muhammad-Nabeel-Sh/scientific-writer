@@ -18,7 +18,7 @@ import type MarkdownIt from 'markdown-it';
 import type StateCore from 'markdown-it/lib/rules_core/state_core.mjs';
 import type Token from 'markdown-it/lib/token.mjs';
 import { CitationTracker } from '../bibliography';
-import { escapeHtml, hasArabic, labelLanguage, type RenderEnv } from './env';
+import { decideArabicNumbers, escapeHtml, formatNumber, hasArabic, labelLanguage, type RenderEnv } from './env';
 
 const ARABIC_INDIC = '٠١٢٣٤٥٦٧٨٩';
 const CAPTION_RE = /^(?:Table|جدول):\s*/;
@@ -208,6 +208,7 @@ function number(state: StateCore): void {
       case 'ordered_list_open': {
         const first = t.slice(i + 1).find((x) => x.type === 'inline');
         tok.attrSet('dir', first && hasArabic(first.content) ? 'rtl' : 'ltr');
+        if (tok.type === 'ordered_list_open' && env.arabicNumbers) tok.attrJoin('class', 'sw-num-ai');
         break;
       }
       case 'math_block': {
@@ -225,7 +226,7 @@ function number(state: StateCore): void {
         const lang = labelLanguage(env, text);
         tok.meta = {
           ...(tok.meta || {}),
-          table: { id: `tbl-${tblNum}`, number: tblNum, caption, label: LABELS.table[lang], dir: hasArabic(text) ? 'rtl' : 'ltr' },
+          table: { id: `tbl-${tblNum}`, number: tblNum, caption, label: LABELS.table[lang], lang, dir: hasArabic(text) ? 'rtl' : 'ltr' },
         };
         env.tables.push({ id: `tbl-${tblNum}`, number: tblNum, caption });
         break;
@@ -237,8 +238,9 @@ function number(state: StateCore): void {
             const src = c.attrGet('src') || '';
             const alt = c.content || '';
             const id = figureId(src, figIds);
-            const label = LABELS.figure[labelLanguage(env, alt)];
-            c.meta = { ...(c.meta || {}), figure: { id, number: figNum, label } };
+            const lang = labelLanguage(env, alt);
+            const label = LABELS.figure[lang];
+            c.meta = { ...(c.meta || {}), figure: { id, number: figNum, label, lang } };
             env.figures.push({ id, number: figNum, src, caption: alt.trim() });
           } else if (c.type === 'sw_citation') {
             c.meta.formatted = citations.formatGroup(c.meta.keys);
@@ -255,7 +257,7 @@ function number(state: StateCore): void {
 }
 
 /** Text for a resolved block reference ("Theorem 2"); set by the academic-blocks plugin. */
-export type BlockRefText = (type: string, number: number) => string | null;
+export type BlockRefText = (type: string, number: number | string) => string | null;
 
 function resolver(blockRefText: () => BlockRefText | null) {
   return function resolve(state: StateCore): void {
@@ -278,10 +280,10 @@ function resolver(blockRefText: () => BlockRefText | null) {
         const { kind, ref } = c.meta as { kind: string; ref: string };
         if (kind === 'eq') {
           const eq = eqs.get(ref);
-          if (eq) c.meta.target = { id: eq.id, text: `(${eq.number})`, cls: 'eq-ref' };
+          if (eq) c.meta.target = { id: eq.id, text: `(${formatNumber(env, eq.number)})`, cls: 'eq-ref' };
         } else {
           const b = blocks.get(`${kind}:${ref}`);
-          const label = b && text ? text(b.type, b.number) : null;
+          const label = b && text ? text(b.type, formatNumber(env, b.number)) : null;
           if (b && label) c.meta.target = { id: b.id, text: label, cls: 'block-ref' };
         }
         if (!c.meta.target) {
@@ -300,26 +302,26 @@ function renderers(md: MarkdownIt): void {
     return `<span class="interlinear-unit"><span class="interlinear-base">${escapeHtml(base)}</span><span class="interlinear-gloss">${escapeHtml(gloss)}</span></span>`;
   };
 
-  md.renderer.rules.image = (tokens: Token[], idx: number) => {
+  md.renderer.rules.image = (tokens: Token[], idx: number, _o, env: RenderEnv) => {
     const token = tokens[idx];
     const src = token.attrGet('src') || '';
     const alt = token.content || '';
     const title = token.attrGet('title');
-    const fig = token.meta?.figure as { id: string; number: number; label: string } | undefined;
+    const fig = token.meta?.figure as { id: string; number: number; label: string; lang: 'ar' | 'en' } | undefined;
     const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
     const img = `<img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}" loading="lazy"${titleAttr} />`;
     if (!fig) return img;
     const captionText = alt ? `: ${escapeHtml(alt)}` : '';
-    return `<figure class="figure" id="${fig.id}">\n    ${img}\n    <figcaption dir="auto">${fig.label} ${fig.number}${captionText}</figcaption>\n  </figure>`;
+    return `<figure class="figure" id="${fig.id}">\n    ${img}\n    <figcaption dir="auto">${fig.label} ${formatNumber(env, fig.number, fig.lang)}${captionText}</figcaption>\n  </figure>`;
   };
 
-  md.renderer.rules.table_open = (tokens: Token[], idx: number) => {
+  md.renderer.rules.table_open = (tokens: Token[], idx: number, _o, env: RenderEnv) => {
     const tbl = tokens[idx].meta?.table as
-      | { id: string; number: number; caption: string; label: string; dir: string }
+      | { id: string; number: number; caption: string; label: string; lang: 'ar' | 'en'; dir: string }
       | undefined;
     if (!tbl) return '<table>\n';
     const suffix = tbl.caption ? `: ${escapeHtml(tbl.caption)}` : '';
-    return `<figure class="table-figure" id="${tbl.id}">\n<figcaption dir="auto">${tbl.label} ${tbl.number}${suffix}</figcaption>\n<table dir="${tbl.dir}">\n`;
+    return `<figure class="table-figure" id="${tbl.id}">\n<figcaption dir="auto">${tbl.label} ${formatNumber(env, tbl.number, tbl.lang)}${suffix}</figcaption>\n<table dir="${tbl.dir}">\n`;
   };
 
   md.renderer.rules.table_close = (tokens: Token[], idx: number) => {
@@ -333,6 +335,9 @@ function renderers(md: MarkdownIt): void {
 
 export function structurePlugin(md: MarkdownIt, opts: { blockRefText: () => BlockRefText | null }): void {
   md.core.ruler.after('block', 'sw_table_captions', tableCaptions);
+  md.core.ruler.after('block', 'sw_doc_numbers', (state) => {
+    decideArabicNumbers(state.env as RenderEnv, state.src);
+  });
   md.core.ruler.after('sw_table_captions', 'sw_split_lines', splitLines);
   md.core.ruler.push('sw_hidden_breaks', hiddenBreaks);
   md.core.ruler.push('sw_gloss', gloss);

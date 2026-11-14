@@ -73,6 +73,8 @@ export interface RenderEnv {
   warnings: RenderWarning[];
   /** Used by markdown-it-footnote. */
   footnotes?: any;
+  /** Generated numbers use Arabic-Indic digits (set by the sw_doc_numbers rule). */
+  arabicNumbers?: boolean;
   [key: string]: unknown;
 }
 
@@ -99,6 +101,41 @@ export function labelLanguage(env: RenderEnv, sample: string): 'ar' | 'en' {
   const l = env.options.labelLang;
   if (l === 'ar' || l === 'en') return l;
   return hasArabic(sample) ? 'ar' : 'en';
+}
+
+const ARABIC_INDIC = '٠١٢٣٤٥٦٧٨٩';
+
+/**
+ * Do generated numbers (equations, figures, tables, blocks, footnotes, list
+ * markers) use Arabic-Indic digits? 'eastern'/'western' decide outright;
+ * 'auto' follows the document's main language, decided once per render from
+ * the source (math, code and link targets excluded): Arabic when its letters
+ * are at least as many as the Latin ones.
+ */
+export function decideArabicNumbers(env: RenderEnv, src: string): boolean {
+  const style = env.options.digitStyle;
+  let value: boolean;
+  if (style === 'eastern') value = true;
+  else if (style === 'western') value = false;
+  else {
+    const prose = src
+      .replace(/^(```|~~~)[^]*?^\1/gm, ' ')
+      .replace(/\$\$[^]*?\$\$|\$[^$\n]*\$|\\\[[^]*?\\\]|\\\([^]*?\\\)/g, ' ')
+      .replace(/`[^`\n]*`|\]\([^)\n]*\)/g, ' ');
+    const arabic = (prose.match(/[ء-يٱ-ۓ]/g) ?? []).length;
+    const latin = (prose.match(/[A-Za-z]/g) ?? []).length;
+    value = arabic > 0 && arabic >= latin;
+  }
+  env.arabicNumbers = value;
+  return value;
+}
+
+/** A generated number in the document's digit style (see decideArabicNumbers). */
+export function formatNumber(env: RenderEnv | undefined, n: number | string, labelLang?: 'ar' | 'en'): string {
+  const s = String(n);
+  // In 'auto' mode an English label ("Figure 2") keeps Western digits.
+  if (labelLang === 'en' && env?.options.digitStyle === 'auto') return s;
+  return env?.arabicNumbers ? s.replace(/[0-9]/g, (d) => ARABIC_INDIC[+d]) : s;
 }
 
 export function escapeHtml(s: string): string {

@@ -58,8 +58,10 @@ describe('LaTeX preamble', () => {
       digitStyle: 'eastern',
       arabicFont: 'Amiri',
     }));
+    // XeLaTeX: unicode-math provides the AMS symbols; amssymb would clash with it.
+    expect(tex).not.toContain('amssymb');
     for (const needle of [
-      '\\usepackage{amsmath,amssymb,mathtools}',
+      '\\usepackage{amsmath,mathtools}',
       '\\usepackage{unicode-math}',
       '\\setmathfont[Path=./]{KatibMath-Regular.otf}',
       '\\setmainfont{Amiri}',

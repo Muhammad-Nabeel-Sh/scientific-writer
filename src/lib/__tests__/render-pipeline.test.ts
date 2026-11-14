@@ -103,10 +103,10 @@ describe('figures and tables', () => {
     const src = '![شكل أ](a.png)\n\n![B](b.png)\n\nجدول: نتائج التجربة\n| أ | ب |\n|---|---|\n| 1 | 2 |';
     const r = renderDocument(src);
     expect(r.figures.map((f) => [f.id, f.number])).toEqual([['fig-a', 1], ['fig-b', 2]]);
-    expect(r.html).toContain('الشكل 1: شكل أ');
+    expect(r.html).toContain('الشكل ١: شكل أ');
     expect(r.html).toContain('Figure 2: B');
     expect(r.tables).toEqual([{ id: 'tbl-1', number: 1, caption: 'نتائج التجربة' }]);
-    expect(r.html).toContain('جدول 1: نتائج التجربة');
+    expect(r.html).toContain('جدول ١: نتائج التجربة');
     expect(r.html).not.toContain('<p dir="auto">جدول:');
   });
 

@@ -62,7 +62,7 @@ ARABIC_RANGES = [
     (0x25CC, 0x25CC),  # dotted circle (for isolated marks)
 ]
 
-MODIFICATIONS_COPYRIGHT = "Katib Math modifications Copyright (c) 2026, Muhammmad Nabeel."
+MODIFICATIONS_COPYRIGHT = "Katib Math modifications Copyright (c) 2026, Muhammad Nabeel Shaesha."
 OFL_DESCRIPTION = (
     "This Font Software is licensed under the SIL Open Font License, Version 1.1. "
     "This license is available with a FAQ at: https://openfontlicense.org"
