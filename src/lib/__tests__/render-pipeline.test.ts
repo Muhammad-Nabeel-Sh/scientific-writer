@@ -111,7 +111,7 @@ describe('figures and tables', () => {
   });
 
   it('labelLang forces label language', () => {
-    expect(renderDocument('![B](b.png)', { labelLang: 'ar' }).html).toContain('الشكل 1');
+    expect(renderDocument('![B](b.png)', { labelLang: 'ar' }).html).toContain('الشكل ١');
   });
 });
 
@@ -149,8 +149,8 @@ describe('academic blocks', () => {
       ['pyth', 'theorem', 1],
       ['theorem-2', 'theorem', 2],
     ]);
-    expect(r.html).toContain('<a href="#pyth" class="block-ref">Theorem 1</a>');
-    expect(r.html).toContain('<a href="#theorem-2" class="block-ref">Theorem 2</a>');
+    expect(r.html).toContain('<a href="#pyth" class="block-ref">نظرية 1</a>');
+    expect(r.html).toContain('<a href="#theorem-2" class="block-ref">نظرية 2</a>');
     expect(r.html).toContain('class="block-ref-unresolved">[ref:lemma:x]');
     expect(r.warnings.some((w) => w.kind === 'ref')).toBe(true);
   });

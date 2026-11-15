@@ -1,7 +1,7 @@
 import type MarkdownIt from 'markdown-it';
 import container from 'markdown-it-container';
 import type StateCore from 'markdown-it/lib/rules_core/state_core.mjs';
-import { formatNumber, type RenderEnv } from './md/env';
+import { formatNumber, labelLanguage, type RenderEnv } from './md/env';
 
 export type Language = 'en' | 'ar';
 
@@ -19,7 +19,6 @@ export interface BlockTypeConfig {
 export type { BlockInfo } from './md/env';
 
 const registry = new Map<string, BlockTypeConfig>();
-let currentLang: Language = 'en';
 const arabicAliases = new Map<string, string>();
 
 export function defineBlock(config: BlockTypeConfig): void {
@@ -30,14 +29,6 @@ export function defineBlocks(configs: BlockTypeConfig[]): void {
   for (const config of configs) {
     defineBlock(config);
   }
-}
-
-export function setLanguage(lang: Language): void {
-  currentLang = lang;
-}
-
-export function getLanguage(): Language {
-  return currentLang;
 }
 
 export function getBlockConfig(type: string): BlockTypeConfig | undefined {
@@ -81,10 +72,11 @@ interface AcademicMeta {
   labelText: string;
   numbered: boolean;
   dir: string;
+  lang: Language;
 }
 
 /** "Theorem 2" / "ملاحظة" for a reference to a block, or null for unknown types. */
-export function blockRefText(type: string, num: number | string, lang: Language = currentLang): string | null {
+export function blockRefText(type: string, num: number | string, lang: Language = 'en'): string | null {
   const config = registry.get(type);
   if (!config) return null;
   const labelText = config.labels[lang];
@@ -102,7 +94,6 @@ function numberBlocks(state: StateCore): void {
     if (tok.type !== 'container_academic_open') continue;
     const { rawType, rest } = splitInfo(tok.info);
     const canonicalType = arabicAliases.get(rawType) || rawType;
-    const isArabic = arabicAliases.has(rawType);
     const config = registry.get(canonicalType);
     const num = (counters.get(canonicalType) || 0) + 1;
     counters.set(canonicalType, num);
@@ -112,16 +103,17 @@ function numberBlocks(state: StateCore): void {
     const title = m ? m[2] : rest;
     const id = label || `${canonicalType}-${num}`;
 
+    const lang = labelLanguage(env, title || rawType);
     const meta: AcademicMeta = config
       ? {
-          id, type: canonicalType, number: num, label, title,
-          labelText: config.labels[isArabic ? 'ar' : currentLang],
+          id, type: canonicalType, number: num, label, title, lang,
+          labelText: config.labels[lang],
           numbered: config.numbered,
-          dir: isArabic ? 'rtl' : 'auto',
+          dir: lang === 'ar' ? 'rtl' : 'auto',
         }
-      : { id, type: canonicalType, number: num, label, title, labelText: rawType, numbered: true, dir: 'auto' };
+      : { id, type: canonicalType, number: num, label, title, lang, labelText: rawType, numbered: true, dir: 'auto' };
     tok.meta = { ...(tok.meta || {}), academic: meta };
-    env.blocks?.push({ id, type: canonicalType, number: num, label });
+    env.blocks?.push({ id, type: canonicalType, number: num, label, lang });
   }
 }
 

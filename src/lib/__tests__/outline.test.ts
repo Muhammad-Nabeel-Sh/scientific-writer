@@ -52,4 +52,11 @@ describe('analyzeOutline', () => {
     expect(analyzeOutline('')).toEqual([]);
     expect(analyzeOutline('نص فقط\nبدون عناوین')).toEqual([]);
   });
+
+  it('keeps source lines absolute when front-matter is present', () => {
+    const md = '---\nlang: ar\n---\n\n# عنوان\n\nنص';
+    expect(analyzeOutline(md)).toEqual([
+      { id: 'h-4', level: 1, text: 'عنوان', lineIndex: 4, charOffset: md.indexOf('# عنوان') },
+    ]);
+  });
 });

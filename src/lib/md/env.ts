@@ -50,6 +50,7 @@ export interface BlockInfo {
   type: string;
   number: number;
   label?: string;
+  lang?: 'ar' | 'en';
 }
 
 export interface RenderWarning {
@@ -75,6 +76,9 @@ export interface RenderEnv {
   footnotes?: any;
   /** Generated numbers use Arabic-Indic digits (set by the sw_doc_numbers rule). */
   arabicNumbers?: boolean;
+  /** Language from the document front-matter, when present. */
+  documentLang?: 'ar' | 'en';
+  frontMatter?: Record<string, string>;
   [key: string]: unknown;
 }
 
@@ -117,6 +121,8 @@ export function decideArabicNumbers(env: RenderEnv, src: string): boolean {
   let value: boolean;
   if (style === 'eastern') value = true;
   else if (style === 'western') value = false;
+  else if (env.options.labelLang === 'ar') value = true;
+  else if (env.options.labelLang === 'en') value = false;
   else {
     const prose = src
       .replace(/^(```|~~~)[^]*?^\1/gm, ' ')

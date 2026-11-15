@@ -6,6 +6,7 @@
  */
 import type { BibEntry } from '../bibliography';
 import { parse } from '../md/parser';
+import { frontMatterLanguage, parseFrontMatter } from '../frontmatter';
 import type { BlockNode, DocumentMeta, DocumentModel, InlineNode } from './ast';
 import { tokensToBlocks } from './from-tokens';
 
@@ -48,15 +49,22 @@ export function detectLanguage(blocks: BlockNode[]): 'ar' | 'en' {
 
 export function parseDocument(markdown: string, bibEntries: BibEntry[] = []): DocumentModel {
   // Exporters receive the author's digits unchanged; numeral style is an output decision.
+  const { meta: frontMatter } = parseFrontMatter(markdown);
   const { tokens, env } = parse(markdown, { bibEntries, digitStyle: 'western' });
   const blocks = tokensToBlocks(tokens);
 
-  const meta: DocumentMeta = {};
+  const meta: DocumentMeta = { ...frontMatter };
   const first = blocks[0];
-  if (first?.type === 'heading' && first.level === 1) meta.title = plainText(first.children);
-  const lang = detectLanguage(blocks);
+  if (!meta.title && first?.type === 'heading' && first.level === 1) {
+    meta.title = plainText(first.children);
+  }
+  const lang = frontMatterLanguage(frontMatter) ?? detectLanguage(blocks);
   meta.lang = lang;
-  meta.direction = lang === 'ar' ? 'rtl' : 'ltr';
+  const frontDir =
+    frontMatter.direction === 'rtl' || frontMatter.direction === 'ltr'
+      ? frontMatter.direction
+      : undefined;
+  meta.direction = frontDir ?? (lang === 'ar' ? 'rtl' : 'ltr');
 
   return {
     meta,

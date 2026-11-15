@@ -19,6 +19,7 @@ import type StateCore from 'markdown-it/lib/rules_core/state_core.mjs';
 import type Token from 'markdown-it/lib/token.mjs';
 import { CitationTracker } from '../bibliography';
 import { decideArabicNumbers, escapeHtml, formatNumber, hasArabic, labelLanguage, type RenderEnv } from './env';
+import { detectDir } from '../bidi';
 
 const ARABIC_INDIC = '٠١٢٣٤٥٦٧٨٩';
 const CAPTION_RE = /^(?:Table|جدول):\s*/;
@@ -207,7 +208,7 @@ function number(state: StateCore): void {
       case 'bullet_list_open':
       case 'ordered_list_open': {
         const first = t.slice(i + 1).find((x) => x.type === 'inline');
-        tok.attrSet('dir', first && hasArabic(first.content) ? 'rtl' : 'ltr');
+        tok.attrSet('dir', detectDir(first?.content ?? ''));
         if (tok.type === 'ordered_list_open' && env.arabicNumbers) tok.attrJoin('class', 'sw-num-ai');
         break;
       }
@@ -226,7 +227,7 @@ function number(state: StateCore): void {
         const lang = labelLanguage(env, text);
         tok.meta = {
           ...(tok.meta || {}),
-          table: { id: `tbl-${tblNum}`, number: tblNum, caption, label: LABELS.table[lang], lang, dir: hasArabic(text) ? 'rtl' : 'ltr' },
+          table: { id: `tbl-${tblNum}`, number: tblNum, caption, label: LABELS.table[lang], lang, dir: detectDir(text) },
         };
         env.tables.push({ id: `tbl-${tblNum}`, number: tblNum, caption });
         break;
@@ -257,7 +258,7 @@ function number(state: StateCore): void {
 }
 
 /** Text for a resolved block reference ("Theorem 2"); set by the academic-blocks plugin. */
-export type BlockRefText = (type: string, number: number | string) => string | null;
+export type BlockRefText = (type: string, number: number | string, lang?: 'ar' | 'en') => string | null;
 
 function resolver(blockRefText: () => BlockRefText | null) {
   return function resolve(state: StateCore): void {
@@ -267,11 +268,15 @@ function resolver(blockRefText: () => BlockRefText | null) {
       if (e.label) eqs.set(e.label, e);
       eqs.set(String(e.number), e);
     }
-    const blocks = new Map<string, { id: string; type: string; number: number }>();
+    const blocks = new Map<string, { id: string; type: string; number: number; lang?: 'ar' | 'en' }>();
     for (const b of env.blocks) {
       if (b.label) blocks.set(`${b.type}:${b.label}`, b);
       blocks.set(`${b.type}:${b.id}`, b);
     }
+    const docLang =
+      env.options.labelLang === 'ar' || env.options.labelLang === 'en'
+        ? env.options.labelLang
+        : undefined;
     const text = blockRefText();
     for (const block of state.tokens) {
       if (block.type !== 'inline') continue;
@@ -283,7 +288,7 @@ function resolver(blockRefText: () => BlockRefText | null) {
           if (eq) c.meta.target = { id: eq.id, text: `(${formatNumber(env, eq.number)})`, cls: 'eq-ref' };
         } else {
           const b = blocks.get(`${kind}:${ref}`);
-          const label = b && text ? text(b.type, formatNumber(env, b.number)) : null;
+          const label = b && text ? text(b.type, formatNumber(env, b.number), b.lang ?? docLang) : null;
           if (b && label) c.meta.target = { id: b.id, text: label, cls: 'block-ref' };
         }
         if (!c.meta.target) {

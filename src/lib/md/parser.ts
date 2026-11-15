@@ -10,6 +10,7 @@ import { academicBlocksPlugin, blockRefText } from '../blocks';
 import { footnotePlugin } from '../footnotes';
 import { classicalBookPlugin } from '../markdown-classical';
 import { createEnv, escapeHtml, type RenderEnv, type RenderOptions } from './env';
+import { frontMatterLanguage, parseFrontMatter } from '../frontmatter';
 import { inlineRefsPlugin } from './inline-refs';
 import { mathPlugin } from './math';
 import { structurePlugin } from './structure';
@@ -86,7 +87,23 @@ export interface ParseResult {
 
 /** Parse only (no HTML). Numbering, labels, citations and warnings are filled in `env`. */
 export function parse(text: string, options: RenderOptions = {}): ParseResult {
-  const env = createEnv(options);
-  const tokens = getParser().parse(text, env);
+  const { meta, body, bodyLineOffset } = parseFrontMatter(text);
+  const lang = frontMatterLanguage(meta);
+  const env = createEnv({ ...options, labelLang: options.labelLang ?? lang });
+  env.documentLang = lang;
+  env.frontMatter = meta;
+  const tokens = getParser().parse(body, env);
+  if (bodyLineOffset > 0) {
+    // Keep line numbers relative to the original text (outline, diagnostics, dialogs).
+    for (const tok of tokens) {
+      if (tok.map) tok.map = [tok.map[0] + bodyLineOffset, tok.map[1] + bodyLineOffset];
+    }
+    for (const eq of env.equations) {
+      if (eq.line != null) eq.line += bodyLineOffset;
+    }
+    for (const warning of env.warnings) {
+      if (warning.line != null) warning.line += bodyLineOffset;
+    }
+  }
   return { tokens, env };
 }

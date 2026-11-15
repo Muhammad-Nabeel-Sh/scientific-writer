@@ -40,11 +40,12 @@ const RENDER_ERROR_HTML = '<p style="color:#ff6b6b">خطأ في تحليل ال�
 
 export function renderDocument(text: string, options: RenderOptions = {}): RenderResult {
   const md = getParser();
-  const env = createEnv(options);
+  let env = createEnv(options);
   let html: string;
   try {
-    const tokens = md.parse(text, env);
-    html = md.renderer.render(tokens, md.options, env);
+    const parsed = parse(text, options);
+    env = parsed.env;
+    html = md.renderer.render(parsed.tokens, md.options, env);
   } catch (e) {
     env.warnings.push({ kind: 'render', message: e instanceof Error ? e.message : String(e) });
     html = RENDER_ERROR_HTML;
