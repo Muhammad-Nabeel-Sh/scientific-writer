@@ -8,6 +8,7 @@ use std::path::{Component, Path, PathBuf};
 use std::sync::Mutex;
 use tauri::{Manager, State};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+use unicode_segmentation::UnicodeSegmentation;
 use workspace::{write_atomic, WorkspaceRegistry};
 
 type Ws<'a> = State<'a, WorkspaceRegistry>;
@@ -444,6 +445,11 @@ struct DictEntry {
     dict_ar: String,
 }
 
+/// One SQLite connection shared by every dictionary query (opened on first use).
+struct DictState {
+    conn: Mutex<Option<Connection>>,
+}
+
 const DICTS: &[(&str, &str, &str, &str)] = &[
     // (table, arabic_name, english_name, group)
     ("lisanularab", "لسان العرب", "Lisan al-Arab", "ar"),
@@ -462,8 +468,88 @@ fn dict_db_path(app: &tauri::AppHandle) -> PathBuf {
     resource_path(app, "db/dicts.sqlite", "src-tauri/db/dicts.sqlite")
 }
 
-/// Search a word/root in a specific dictionary.
-fn search_dict(
+/// Normalize Arabic for dictionary lookup. Keep in sync with
+/// `scripts/build-dict-fts.py` (the script fills `word_norm`/`root_norm`).
+fn normalize_arabic(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        if matches!(c, '\u{064B}'..='\u{065F}' | '\u{0670}' | '\u{0640}' | '\u{06D6}'..='\u{06ED}') {
+            continue;
+        }
+        let mapped = match c {
+            'إ' | 'أ' | 'آ' | 'ٱ' | 'ا' => 'ا',
+            'ى' => 'ي',
+            'ة' => 'ه',
+            'ئ' => 'ي',
+            'ؤ' => 'و',
+            other => other,
+        };
+        for lower in mapped.to_lowercase() {
+            out.push(lower);
+        }
+    }
+    out.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn table_exists(conn: &Connection, name: &str) -> bool {
+    conn.query_row(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?1",
+        [name],
+        |_| Ok(()),
+    )
+    .is_ok()
+}
+
+fn dict_entry(table: &str, word: String, meanings: String) -> DictEntry {
+    let (_, dict_ar, dict_en, _) = DICTS
+        .iter()
+        .find(|(t, _, _, _)| *t == table)
+        .unwrap_or(&("", "", "", ""));
+    DictEntry {
+        word,
+        meanings,
+        dict_name: dict_en.to_string(),
+        dict_ar: dict_ar.to_string(),
+    }
+}
+
+fn search_dict_fts(
+    conn: &Connection,
+    query: &str,
+    dict_table: &str,
+    search_by_root: bool,
+) -> Result<Vec<DictEntry>, String> {
+    let normalized = normalize_arabic(query);
+    if normalized.is_empty() {
+        return Ok(Vec::new());
+    }
+    let (col, extra) = match (dict_table, search_by_root) {
+        ("mujamul_ghoni", true) => ("root_norm", ""),
+        ("hanswehr", true) | ("lanelexcon", true) => ("word_norm", "AND d.is_root = 1"),
+        (_, true) => ("word_norm", ""),
+        (_, false) => ("word_norm", ""),
+    };
+    let sql = format!(
+        "SELECT d.word, d.meanings FROM \"{}\" d JOIN \"{}_fts\" f ON f.rowid = d.id \
+         WHERE f.\"{}\" MATCH ?1 {} ORDER BY d.word LIMIT 30",
+        dict_table, dict_table, col, extra
+    );
+    let pattern = format!("\"{}\"*", normalized.replace('"', "\"\""));
+    let mut stmt = conn.prepare(&sql).map_err(|e| format!("prepare: {}", e))?;
+    let rows = stmt
+        .query_map([&pattern], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })
+        .map_err(|e| format!("query: {}", e))?;
+    let mut results = Vec::new();
+    for row in rows {
+        let (word, meanings) = row.map_err(|e| format!("row: {}", e))?;
+        results.push(dict_entry(dict_table, word, meanings));
+    }
+    Ok(results)
+}
+
+fn search_dict_like(
     conn: &Connection,
     query: &str,
     dict_table: &str,
@@ -487,33 +573,46 @@ fn search_dict(
             Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
         })
         .map_err(|e| format!("query: {}", e))?;
-
     let mut results = Vec::new();
     for row in rows {
         let (word, meanings) = row.map_err(|e| format!("row: {}", e))?;
-        let (_, dict_ar, dict_en, _) = DICTS
-            .iter()
-            .find(|(t, _, _, _)| *t == dict_table)
-            .unwrap_or(&("", "", "", ""));
-        results.push(DictEntry {
-            word,
-            meanings,
-            dict_name: dict_en.to_string(),
-            dict_ar: dict_ar.to_string(),
-        });
+        results.push(dict_entry(dict_table, word, meanings));
     }
     Ok(results)
 }
 
+/// Search a word/root. Uses the normalized FTS5 index when it exists, with a
+/// LIKE fallback for databases that have not run `scripts/build-dict-fts.py` yet.
+fn search_dict(
+    conn: &Connection,
+    query: &str,
+    dict_table: &str,
+    search_by_root: bool,
+) -> Result<Vec<DictEntry>, String> {
+    let fts = format!("{}_fts", dict_table);
+    if table_exists(conn, &fts) {
+        if let Ok(results) = search_dict_fts(conn, query, dict_table, search_by_root) {
+            return Ok(results);
+        }
+    }
+    search_dict_like(conn, query, dict_table, search_by_root)
+}
+
 fn search_dictionary_blocking(
-    db_path: PathBuf,
+    app: &tauri::AppHandle,
     query: &str,
     dict_table: Option<&str>,
     search_mode: Option<&str>,
     dict_group: Option<&str>,
 ) -> Result<Vec<DictEntry>, String> {
-    let conn =
-        Connection::open(&db_path).map_err(|e| format!("open db {:?}: {}", db_path, e))?;
+    let state = app.state::<DictState>();
+    let mut guard = state.conn.lock().map_err(|e| e.to_string())?;
+    if guard.is_none() {
+        let path = dict_db_path(app);
+        let conn = Connection::open(&path).map_err(|e| format!("open db {:?}: {}", path, e))?;
+        *guard = Some(conn);
+    }
+    let conn = guard.as_ref().unwrap();
 
     let search_by_root = search_mode == Some("root");
 
@@ -534,7 +633,7 @@ fn search_dictionary_blocking(
 
     let mut all = Vec::new();
     for (table, _, _, _) in dicts {
-        let results = search_dict(&conn, query, table, search_by_root)?;
+        let results = search_dict(conn, query, table, search_by_root)?;
         all.extend(results);
     }
     all.sort_by(|a, b| a.word.cmp(&b.word));
@@ -550,10 +649,9 @@ async fn search_dictionary(
     search_mode: Option<String>,   // "word" | "root", default "word"
     dict_group: Option<String>,    // "all" | "ar" | "ar_en", default "all"
 ) -> Result<Vec<DictEntry>, String> {
-    let db_path = dict_db_path(&app);
     tauri::async_runtime::spawn_blocking(move || {
         search_dictionary_blocking(
-            db_path,
+            &app,
             &query,
             dict_table.as_deref(),
             search_mode.as_deref(),
@@ -613,24 +711,67 @@ fn check_spelling_blocking(app: &tauri::AppHandle, text: &str) -> Result<Vec<Spe
     let mut results: Vec<SpellError> = Vec::new();
     let mut seen = std::collections::HashSet::new();
 
-    for raw in text.split(|c: char| !c.is_alphanumeric() && c != '\'' && c != '\u{0621}') {
-        let word = raw.trim();
-        if word.is_empty() || word.len() < 2 { continue; }
-        if !word.chars().any(|c| c >= '\u{0600}' && c <= '\u{06FF}') {
+    for token in tokenize_arabic_words(text) {
+        if !seen.insert(token.normalized.clone()) {
             continue;
         }
-        if seen.insert(word.to_string()) {
-            let w = word.to_string();
-            if !dict.check(&w) {
-                let mut suggestions = Vec::new();
-                dict.suggest(&w, &mut suggestions);
-                suggestions.truncate(5);
-                results.push(SpellError { word: w, suggestions });
-            }
+        if !dict.check(&token.normalized) {
+            let mut suggestions = Vec::new();
+            dict.suggest(&token.normalized, &mut suggestions);
+            suggestions.truncate(5);
+            results.push(SpellError {
+                word: token.word,
+                start: token.start,
+                end: token.end,
+                suggestions,
+            });
         }
     }
 
     Ok(results)
+}
+
+/** Remove tashkeel, dagger alif and tatweel before asking Hunspell. */
+fn strip_arabic_marks(word: &str) -> String {
+    word.chars()
+        .filter(|c| !matches!(*c, '\u{064B}'..='\u{065F}' | '\u{0670}' | '\u{0640}'))
+        .collect()
+}
+
+#[derive(Debug, Clone)]
+struct SpellToken {
+    /** Original text, including diacritics. */
+    word: String,
+    /** Tashkeel-stripped form sent to Hunspell. */
+    normalized: String,
+    /** UTF-16 offsets (compatible with the webview textarea). */
+    start: usize,
+    end: usize,
+}
+
+fn tokenize_arabic_words(text: &str) -> Vec<SpellToken> {
+    let mut out = Vec::new();
+    for (byte_start, word) in text.unicode_word_indices() {
+        let normalized = strip_arabic_marks(word);
+        if normalized.chars().count() < 2 {
+            continue;
+        }
+        if !normalized
+            .chars()
+            .any(|c| ('\u{0600}'..='\u{06FF}').contains(&c) && c.is_alphabetic())
+        {
+            continue;
+        }
+        let start = text[..byte_start].encode_utf16().count();
+        let end = start + word.encode_utf16().count();
+        out.push(SpellToken {
+            word: word.to_string(),
+            normalized,
+            start,
+            end,
+        });
+    }
+    out
 }
 
 #[tauri::command]
@@ -643,6 +784,8 @@ async fn check_spelling(app: tauri::AppHandle, text: String) -> Result<Vec<Spell
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 struct SpellError {
     word: String,
+    start: usize,
+    end: usize,
     suggestions: Vec<String>,
 }
 
@@ -654,6 +797,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .manage(SpellcheckState { dict: Mutex::new(None) })
+        .manage(DictState { conn: Mutex::new(None) })
         .setup(|app| {
             let handle = app.handle();
             let default_ws = workspace_dir(handle);
@@ -820,5 +964,89 @@ mod tests {
         .unwrap_err();
         assert!(err.contains("Pandoc"), "error was: {err}");
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn spellcheck_strips_tashkeel_dagger_alif_and_tatweel() {
+        assert_eq!(strip_arabic_marks("كَتَبَ"), "كتب");
+        assert_eq!(strip_arabic_marks("اللّٰه"), "الله");
+        assert_eq!(strip_arabic_marks("كـــتاب"), "كتاب");
+        assert_eq!(strip_arabic_marks("الْحَمْدُ"), "الحمد");
+    }
+
+    #[test]
+    fn spellcheck_tokenizes_on_word_boundaries_with_utf16_offsets() {
+        let text = "كَتَبَ الطالبُ الدرسَ";
+        let tokens = tokenize_arabic_words(text);
+        assert_eq!(
+            tokens.iter().map(|t| t.normalized.as_str()).collect::<Vec<_>>(),
+            ["كتب", "الطالب", "الدرس"]
+        );
+        assert_eq!((tokens[0].start, tokens[0].end), (0, 6));
+        assert_eq!((tokens[1].start, tokens[1].end), (7, 14));
+        assert_eq!((tokens[2].start, tokens[2].end), (15, 21));
+        assert_eq!(tokens[0].word, "كَتَبَ");
+    }
+
+    #[test]
+    fn spellcheck_skips_non_arabic_single_letters_and_digits() {
+        assert!(tokenize_arabic_words("Hello 123").is_empty());
+        assert!(tokenize_arabic_words("و ب").is_empty());
+        assert!(tokenize_arabic_words("١٥").is_empty());
+        let mixed = tokenize_arabic_words("Hello كَتَبَ 123");
+        assert_eq!(mixed.len(), 1);
+        assert_eq!((mixed[0].start, mixed[0].end), (6, 12));
+    }
+
+    #[test]
+    fn spellcheck_quranic_text_has_no_false_fragments() {
+        let text = "الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ";
+        let tokens = tokenize_arabic_words(text);
+        assert_eq!(
+            tokens.iter().map(|t| t.normalized.as_str()).collect::<Vec<_>>(),
+            ["الحمد", "لله", "رب", "العالمين"]
+        );
+    }
+
+    #[test]
+    fn dictionary_normalization_matches_the_search_forms() {
+        assert_eq!(normalize_arabic("الْكِتَابُ"), "الكتاب");
+        assert_eq!(normalize_arabic("إسلام"), "اسلام");
+        assert_eq!(normalize_arabic("مدرسة"), "مدرسه");
+        assert_eq!(normalize_arabic("كــتاب"), "كتاب");
+        assert_eq!(normalize_arabic("  كلمة   أخرى "), "كلمه اخري");
+    }
+
+    #[test]
+    fn dictionary_fts_search_and_like_fallback() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            r#"
+            CREATE TABLE lisanularab (id INTEGER PRIMARY KEY, word TEXT, meanings TEXT, word_norm TEXT, root_norm TEXT);
+            INSERT INTO lisanularab VALUES
+              (1, 'مدرسة', 'school', 'مدرسه', NULL),
+              (2, 'كتاب', 'book', 'كتاب', NULL);
+            CREATE VIRTUAL TABLE lisanularab_fts USING fts5(word_norm, root_norm, content='lisanularab', content_rowid='id');
+            INSERT INTO lisanularab_fts(lisanularab_fts) VALUES('rebuild');
+
+            CREATE TABLE mujamul_wasith (id INTEGER PRIMARY KEY, word TEXT, meanings TEXT);
+            INSERT INTO mujamul_wasith VALUES (1, 'كتاب', 'book');
+            "#,
+        )
+        .unwrap();
+
+        let fts = search_dict(&conn, "مدرسة", "lisanularab", false).unwrap();
+        assert_eq!(fts.len(), 1);
+        assert_eq!(fts[0].word, "مدرسة");
+        assert_eq!(fts[0].dict_ar, "لسان العرب");
+
+        // Normalization means a bare spelling finds the vocalized headword.
+        let normalized = search_dict(&conn, "مدرسه", "lisanularab", false).unwrap();
+        assert_eq!(normalized.len(), 1);
+
+        // No FTS table → the LIKE fallback keeps older databases working.
+        let fallback = search_dict(&conn, "كتاب", "mujamul_wasith", false).unwrap();
+        assert_eq!(fallback.len(), 1);
+        assert_eq!(fallback[0].meanings, "book");
     }
 }
