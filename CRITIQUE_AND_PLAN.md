@@ -470,10 +470,19 @@ Claude's tasks are done: **M1, M2, M3, M10** completely, plus **M6 and M7 as dec
 
 | ID | Owner | Task | Done when |
 |---|---|---|---|
-| L1 | [OC] | **Spellcheck tokeniser**: in Rust, tokenise on Unicode word boundaries (`unicode-segmentation` crate), strip tashkeel (U+064B–U+065F, U+0670) and tatweel (U+0640) before `dict.check`, return `{word, start, end, suggestions}` offsets on the *original* text; length check via `chars().count()`; remove the per-call `.clone()`. Rust unit tests with vocalised Quranic text. | `كَتَبَ الطالبُ` yields no false fragments |
-| L2 | [OC] | **Dictionary FTS5**: one-time build script that adds a normalised `word_norm` column + FTS5 table per dictionary (or one combined table); keep a single pooled `Connection` in Tauri state. | Search latency < 50 ms on a typical root (measure & note) |
-| L3 | [OC] | Direction detection via first strong character (shared helper `detectDir(text)` in `src/lib/bidi.ts`) used by list/table rendering. Tests. | — |
-| L4 | [OC] | Document-level language setting (front-matter `lang: ar|en`) drives figure/table/equation labels and equation-number digits. | — |
+| L1 ✅ | [OC] | **Spellcheck tokeniser**: in Rust, tokenise on Unicode word boundaries (`unicode-segmentation` crate), strip tashkeel (U+064B–U+065F, U+0670) and tatweel (U+0640) before `dict.check`, return `{word, start, end, suggestions}` offsets on the *original* text; length check via `chars().count()`; remove the per-call `.clone()`. Rust unit tests with vocalised Quranic text. | `كَتَبَ الطالبُ` yields no false fragments |
+| L2 ✅ | [OC] | **Dictionary FTS5**: one-time build script that adds a normalised `word_norm` column + FTS5 table per dictionary (or one combined table); keep a single pooled `Connection` in Tauri state. | Search latency < 50 ms on a typical root (measure & note) |
+| L3 ✅ | [OC] | Direction detection via first strong character (shared helper `detectDir(text)` in `src/lib/bidi.ts`) used by list/table rendering. Tests. | - |
+| L4 ✅ | [OC] | Document-level language setting (front-matter `lang: ar|en`) drives figure/table/equation labels and equation-number digits. | - |
+
+#### Phase 5 status (2026-11-15)
+
+All four Phase 5 tasks are done.
+
+- **L1:** `unicode-segmentation` tokenises on word boundaries; `strip_arabic_marks()` removes tashkeel, dagger alif, tatweel and Quranic marks before Hunspell. `SpellError` now carries UTF-16 `start`/`end` offsets (textarea-compatible) plus the original `word`; duplicate suggestions are deduplicated by the normalized form. The dictionary is no longer cloned per call. Rust tests cover vocalized Quranic text, offsets, mixed text and single letters.
+- **L2:** `scripts/build-dict-fts.py` adds `word_norm`/`root_norm` and an external-content FTS5 table per lexicon (idempotent; ~3 s; DB 165 → 177 MB). `DictState` keeps one pooled `Connection`; `search_dictionary` uses normalized prefix FTS (`"query"*`) with a `LIKE` fallback for unbuilt databases. Measured on the real DB: **0.02–0.12 ms** per query (well under 50 ms); documentation added to README/AGENTS.
+- **L3:** `src/lib/bidi.ts#detectDir()` implements first-strong-character detection and is used for list and table `dir` attributes. Tests cover Arabic/Latin, numbers/punctuation, presentation forms and mixed text.
+- **L4:** `src/lib/frontmatter.ts` parses flat front-matter; `md/parser.ts` strips it and sets `labelLang`/`documentLang`. `decideArabicNumbers()` follows that language in `auto` digit mode; figures/tables/blocks use `labelLanguage()` and block refs carry their language. Publishing `parseDocument()` also reads front-matter for `meta.lang`/`direction`/`title`. Tests cover `lang: ar`/`en`, stripped output, labels, equation/list digits and export metadata.
 
 ### Phase 6 — Editor & performance (Claude)
 

@@ -113,6 +113,8 @@ Written in Svelte 5 compatibility syntax (no runes): `$:` reactive statements, `
   asset-protocol scope widened at runtime to trusted workspaces
 - Rust backend has 20 commands: workspace (3), file I/O (9), assets (2), hadith (2), dictionary (2), spellcheck (1), pandoc export (1)
 - `src-tauri/db/dicts.sqlite` bundled with 10 Arabic dictionaries (Lisan al-Arab, Al-Waseet, etc.)
+- Run `python scripts/build-dict-fts.py --bench` once to build the normalized
+  FTS5 dictionary index (the app falls back to `LIKE` without it).
 - `src-tauri/capabilities/default.json` grants only core window + opener
   permissions; there are no generic FS or dialog permissions for the webview
 - Plugins: `tauri_plugin_dialog` (called from Rust only), `tauri_plugin_opener`

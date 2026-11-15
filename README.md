@@ -46,9 +46,10 @@ npm install
 
 ### 1. Add the dictionary database (required for dictionary lookup)
 
-`src-tauri/db/dicts.sqlite` is **not tracked in git** because it is a ~165 MB
-SQLite database. Obtain a copy from the project maintainer or from an existing
-checkout/backup, then place it at:
+`src-tauri/db/dicts.sqlite` is **not tracked in git** because it is a large
+SQLite database (~165 MB, ~177 MB once the FTS index is built). Obtain a copy
+from the project maintainer or from an existing checkout/backup, then place it
+at:
 
 ```
 src-tauri/db/dicts.sqlite
@@ -62,10 +63,20 @@ The file is bundled into the application by `tauri.conf.json`
 
 ```powershell
 Get-Item src-tauri\db\dicts.sqlite | Select-Object Length
-# expected: roughly 165 MB (173,000,000+ bytes, non-zero)
+# expected: 165 MB or more (173,000,000+ bytes, non-zero)
 ```
 
 Without this file the dictionary panel cannot work.
+
+For fast dictionary lookup, build the normalized FTS5 index once (the app falls
+back to a slower `LIKE` search if it is missing):
+
+```bash
+python scripts/build-dict-fts.py --bench
+```
+
+It adds `word_norm`/`root_norm` columns and one FTS5 table per lexicon
+(~12 MB extra) and reports warm-query latency.
 
 ### 2. Run the desktop app
 
@@ -133,7 +144,7 @@ scientific-writer/
 |---|---|---|
 | `docs/hadith-json-1.2.0/` | ~59 MB | 9-book Ḥadīth dataset (JSON). |
 | `src/lib/quran.json` | — | 6,236 Qurʾān verses for search/insert. |
-| `src-tauri/db/dicts.sqlite` | ~165 MB | Arabic lexicons; **not in git** (see above). |
+| `src-tauri/db/dicts.sqlite` | ~165–177 MB | Arabic lexicons; **not in git** (see above). |
 | `src-tauri/resources/hunspell/` | ~7 MB | Arabic Hunspell dictionary for spellcheck. |
 
 ## Troubleshooting
